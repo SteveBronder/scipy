@@ -1,0 +1,14 @@
+# scipy.integrate build/extension layout (excluding riccaticpp)
+- Meson entry: `scipy/integrate/meson.build` defines extension modules and installs Python sources. Uses top-level deps `np_dep` (NumPy), `ccallback_dep` (include path to `scipy/_lib/src` with `ccallback.h`), and `lapack_lp64_dep` where needed.
+- Extension modules compiled via `py3.extension_module`:
+  - `_quadpack`: sources `__quadpack.h`, `__quadpack.c`; deps `[np_dep, ccallback_dep]` (Python callbacks via `ccallback.h`).
+  - `_odepack`: sources `_odepackmodule.c`, `src/lsoda.c`; deps `[lapack_lp64_dep, np_dep, ccallback_dep]`; `link_args: version_link_args` to hide symbols.
+  - `_vode`: sources `_dzvodemodule.c`, `src/vode.c`, `src/zvode.c`; deps `[lapack_lp64_dep, np_dep, ccallback_dep]`, `link_args: version_link_args`.
+  - `_dop`: sources `_dopmodule.c`, `src/dop.c`; deps `[np_dep, ccallback_dep]`, `link_args: version_link_args`.
+  - `_test_multivariate` (tests): source `tests/_test_multivariate.c`; deps `[version_link_args]`, tag `install_tag: 'tests'`.
+- Python sources installed from `py3.install_sources` include wrappers `_odepack_py.py`, `_quadpack_py.py`, `_ode.py`, `_bvp.py`, `_ivp/*`, numerical rules `_rules/*`, integration helpers (`_quad_vec.py`, `_quadrature.py`, `_tanhsinh.py`, `_cubature.py`, `_lebedev.py`, legacy modules `dop.py`, `lsoda.py`, `odepack.py`, `quadpack.py`).
+- C sources live in `scipy/integrate/src` (lsoda/vode/zvode/dop plus `blaslapack_declarations.h`). These are C (not Fortran) wrappers to ODEPACK/DOP solvers using `ccallback` for Python callbacks and NumPy C-API access.
+- Top-level `meson.build` sets `cpp_std=c++17`, `c_std=c17`, and defines `version_link_args` linker script for extension modules; use the same for new C/C++ modules to match visibility settings.
+- `ccallback_dep` comes from `scipy/_lib/meson.build` (`declare_dependency(include_directories: ['..', 'src'])`) so C/C++ extension code can `#include "ccallback.h"` for `LowLevelCallable` support.
+- Typical import flow: `scipy/integrate/__init__.py` imports `_odepack_py`, `_quadpack_py`, `_ode` (which imports compiled `_vode`, `_dop`, `_odepack`), `_ivp` package (`solve_ivp`, solver classes), and other pure-Python utilities. Adding a new extension requires updating `meson.build` and the relevant Python wrappers plus `__init__.py` export list.
+- Tests run via `pixi run test ./scipy/integrate/` build the extensions via `spin build` then run pytest with PYTHONPATH pointing to `build-install/.../site-packages`.

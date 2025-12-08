@@ -1,0 +1,23 @@
+# riccaticpp package (current state inside scipy/integrate/riccaticpp)
+- Build system: standalone `pyproject.toml` uses scikit-build-core + CMake + pybind11; CMake fetches Eigen (via `cmake_deps/CMakeLists.txt` FetchContent eigen 3.4.0). Options: `RICCATI_BUILD_PYTHON` controls pybind target. C++17, `python_add_library(pyriccaticpp MODULE src/pymain.cpp WITH_SOABI)` linked with `pybind11::headers`, `riccati` interface library (header-only) and `Eigen3::Eigen`; compile defs `VERSION_INFO`, `RICCATI_PYTHON`; adds `-Wno-deprecated-declarations` on non-MSVC.
+- C++ sources: header-only library under `include/riccati/` (solver.hpp, evolve.hpp, step.hpp, stepsize.hpp, chebyshev.hpp, utils.hpp, memory/arena allocator, logger, vectorizer, macros, riccati.hpp). Core algorithm solves second-order ODE `y'' + 2*g*y' + w^2*y = 0` using Riccati + Chebyshev collocation with specialized oscillatory/nonoscillatory steps, automatic step size selection (`choose_osc_stepsize`, `choose_nonosc_stepsize`), logging, and arena allocator.
+- Python binding: `src/pymain.cpp` (pybind11) defines module `pyriccaticpp`.
+  - Exposes enums `LogLevel {ERROR, WARNING, INFO, DEBUG}` and `LogInfo {CHEBNODES, CHEBSTEP, CHEBITS, LS, RICCSTEP}`.
+  - Exposes four `SolverInfo` instantiations for combinations of omega/gamma return types (real/complex): `Init_OF64_GF64`, `Init_OC64_GF64`, `Init_OF64_GC64`, `Init_OC64_GC64` (constructors take `omega_fun`, `gamma_fun`, `nini`, `nmax`, `n`, `p`). `omega_fun`/`gamma_fun` can be Python callables accepting scalars or numpy vectors; bindings cast via `.cast` helpers.
+  - Functions:
+    * `evolve(info, xi, xf, yi, dyi, eps, epsilon_h, init_stepsize=0.01, x_eval=None, hard_stop=False, log_level=LogLevel.ERROR)` -> tuple `(xs, ys, dys, successes, phases, steptypes, yeval, dyeval, 1.0)`. Performs combined oscillatory/nonoscillatory stepping with adaptive step sizes; supports optional dense output at `x_eval` points. Uses `epsilon_h` for step size selection; `hard_stop` enforces final point exactly.
+    * `osc_evolve(...)` same signature (without log_level) but forces oscillatory stepping; returns tuple `(xs, ys, dys, successes?, steptypes?, phases?, yeval?, dyeval?)`—thin wrapper around `osc_evolve` in C++ (no docstring currently; returns the osc_evolve tuple from C++ helper).
+    * `nonosc_evolve(...)` similar for non-oscillatory steps.
+    * `choose_osc_stepsize(info, x0, h, epsilon_h)` -> tuple `(h_new, omega_vals, gamma_vals)` (py wrapper only returns `h_new`), refining h via Chebyshev interpolation error of omega/gamma.
+    * `choose_nonosc_stepsize(info, x0, h, epsilon_h)` -> scalar refined h based on variation of 1/omega.
+  - Helper dispatch `info_caster` checks the concrete `Init_*` class and calls templated implementations, recovering arena memory after calls.
+- Python package wrapper: `src/pyriccaticpp/__init__.py` re-exports functions and defines `Init` factory. `Init` samples `omega_fun(0)`/`gamma_fun(0)` to select appropriate `Init_*` class, so user creates solver via `ric.Init(omega_fun, gamma_fun, nini, nmax, n, p)`.
+- Tests (Python) `tests/python/test.py` show usage patterns:
+  - Build `info = ric.Init(omega_fun, gamma_fun, nini, nmax, n, p)`.
+  - Call `ric.choose_osc_stepsize(info, xi, h, epsh)` or `choose_nonosc_stepsize` for initial step guess.
+  - Call `ric.evolve(info=..., xi, xf, yi, dyi, eps, epsilon_h, init_stepsize, hard_stop=True)`; unpack returns as `xs, ys, dys, successes, phases, steptypes, yeval, dyeval, _`. Used for Schrodinger and Bremer benchmark-style tests.
+- C++ internals relevant for integration:
+  - `SolverInfo` stores Chebyshev matrices (`chebyshev_`), differentiation matrices, xp/xn nodes, interpolation matrix L, quadrature weights, allocator, and logger.
+  - `choose_osc_stepsize` returns both refined h and sampled omega/gamma vectors; `choose_nonosc_stepsize` halves h until |omega| <= (1+eps_h)/|h| (handles complex omega).
+  - `evolve` main loop picks oscillatory vs nonosc step depending on omega characteristics; updates step sizes (hslo/hosc), uses dense output when `x_eval` is provided, tracks `successes`, `steptypes` (1=osc,0=nonosc), `phases`.
+- Packaging artifacts: standalone README/benchmarks/examples; not currently hooked into SciPy meson build. Pybind target name `pyriccaticpp` would need to be renamed/relocated for SciPy integration (likely extension `_riccati` or similar in `scipy/integrate`).

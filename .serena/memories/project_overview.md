@@ -1,0 +1,6 @@
+# SciPy project overview
+- Purpose: Open-source scientific computing library for Python (statistics, optimization, integration, linear algebra, FFTs, signal/image processing, ODE solvers, etc.) built to operate on NumPy arrays.
+- Tech stack: Python with C/C++/Fortran extensions built via Meson/meson-python; BLAS/LAPACK backends (OpenBLAS/MKL/etc.); pytest + hypothesis for tests; documentation in reStructuredText/Sphinx with numpydoc; optional array-api backends.
+- Tooling: `spin` CLI for build/test/lint/mypy/docs; `pixi` environments preconfigured (see `pixi.toml`); uses `ruff` + `pycodestyle` for linting and `mypy` for type checks.
+- Repository structure: `scipy/` main Python package with submodules (e.g., integrate, optimize, linalg); `doc/` Sphinx docs; `tools/` helper scripts (lint, wheels, etc.); `benchmarks/` ASV benchmarks; `subprojects/` third-party components; config files (`pyproject.toml`, `meson.build`, `pixi.toml`, etc.) at repo root.
+- Key references: README.rst for project description; `doc/source/dev` for contributor workflow/testing/style; `pyproject.toml` lists spin commands; `pixi.toml` for environment setups.
