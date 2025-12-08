@@ -105,7 +105,7 @@ from ._odepack_py import *
 from ._quadpack_py import *
 from ._ode import *
 from ._bvp import solve_bvp
-from ._ivp import (solve_ivp, OdeSolution, DenseOutput,
+from ._ivp import (solve_ivp, solve_ivp_osc, OdeSolution, DenseOutput,
                    OdeSolver, RK23, RK45, DOP853, Radau, BDF, LSODA)
 from ._quad_vec import quad_vec
 from ._tanhsinh import nsum, tanhsinh

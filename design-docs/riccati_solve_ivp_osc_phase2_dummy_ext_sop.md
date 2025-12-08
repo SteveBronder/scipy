@@ -1,0 +1,95 @@
+# SOP: Phase 2 – Cython `_riccati` dummy extension
+
+This is a task-oriented checklist for subagents to implement `solve_ivp_osc` in stages.
+You are a senior developer familiar with SciPy's codebase and development practices. Your goal is to execute the implementation of `solve_ivp_osc`, a new ODE solver specialized for oscillatory problems, by migrating and adapting the existing `riccaticpp` codebase into SciPy.
+
+**Goal:** Add a minimal Cython C++ extension to the SciPy build so the meson and Cython plumbing are proven before integrating the riccati algorithm.
+
+---
+
+## Preconditions
+
+- [ ] Phase 1 SOP completed and tests passing.
+- [ ] You can successfully run `pixi run build` and `pixi run test ./scipy/integrate/`.
+
+---
+
+## Step 1 – Create the Cython module
+
+- [ ] Create `scipy/integrate/_ivp/_riccati.pyx` with content similar to:
+  ```cython
+  cpdef int _dummy_riccati(int x):
+      return x
+  ```
+- [ ] No Eigen or riccati headers should be used yet—keep it pure Cython for now.
+
+---
+
+## Step 2 – Integrate `_riccati` into meson
+
+- [ ] Open `scipy/integrate/meson.build`.
+- [ ] Add a new extension module definition for `_ivp._riccati`, for example:
+  ```meson
+  py3.extension_module(
+    '_ivp._riccati',
+    [lib_cython_gen.process('_ivp/_riccati.pyx')],
+    dependencies: [np_dep],
+    link_args: version_link_args,
+    install: true,
+    subdir: 'scipy/integrate',
+  )
+  ```
+- [ ] Ensure the resulting shared library installs to `scipy/integrate/_ivp/_riccati.*.so`.
+
+---
+
+## Step 3 – Call the dummy extension from Python
+
+- [ ] In `scipy/integrate/_ivp/_osc.py`:
+  - [ ] Add `from . import _riccati as _ric` near the top.
+  - [ ] Inside `solve_ivp_osc`, before raising `NotImplementedError`, add a call like:
+    ```python
+    _ = _ric._dummy_riccati(1)
+    ```
+    (ignore the result). This ensures the extension is imported and callable.
+
+---
+
+## Step 4 – Add tests for the dummy extension
+
+- [ ] Create `scipy/integrate/_ivp/tests/test_riccati_dummy.py`.
+- [ ] Add tests:
+  - [ ] Import test:
+    ```python
+    from scipy.integrate._ivp import _riccati
+    ```
+    should not raise.
+  - [ ] Behavior test:
+    - [ ] Assert `_riccati._dummy_riccati(5) == 5`.
+
+---
+
+## Step 5 – Build and test
+
+- [ ] Run:
+  - [ ] `pixi run build`
+  - [ ] `pixi run test ./scipy/integrate/`
+- [ ] Ensure that:
+  - [ ] `_ivp._riccati` builds on all CI platforms supported by SciPy.
+  - [ ] `solve_ivp_osc` still raises `NotImplementedError` but now successfully imports and calls `_dummy_riccati`.
+
+---
+
+## Exit criteria for Phase 2
+
+- [ ] `_ivp._riccati` is built and installed by meson.
+- [ ] The dummy function `_dummy_riccati` can be imported and called from Python.
+- [ ] Existing `solve_ivp_osc` stub test suite still passes.
+
+---
+
+## Additional questions for Phase 2
+
+- [ ] Are there any SciPy-internal naming/preferences for compiled modules beyond the `_ivp._name` pattern that we should conform to?
+- [ ] Should this phase also add minimal type annotations in `_riccati.pyx` (e.g. `int` vs `Py_ssize_t`) for consistency with other Cython modules, or is that premature?
+

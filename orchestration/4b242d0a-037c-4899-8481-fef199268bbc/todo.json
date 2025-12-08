@@ -1,0 +1,10 @@
+{
+  "request_id": "4b242d0a-037c-4899-8481-fef199268bbc",
+  "created_at": "2025-12-08T21:43:44.636Z",
+  "user_prompt": "Explore the SciPy integrate package, focusing on the IVP solvers and public API, to support adding a new stub function `solve_ivp_osc` per design-docs/riccati_solve_ivp_osc_phase1_stub_sop.md. Specifically:\n\n1. Map out the structure of `scipy/integrate`, especially `_ivp` modules (e.g. `_ivp.py`, `_ivp/common.py`, any submodules like `_rk`, `_bdf`, etc.). Identify where `solve_ivp` is defined, how it validates arguments, and how it is exported to the public namespace.\n2. Note any patterns for adding new IVP solvers or helper functions and how tests are organized under `scipy/integrate/_ivp/tests`.\n3. Summarize any key conventions (error types/messages, input validation, dtype handling) that a stub `solve_ivp_osc` function should follow to be consistent with the existing `solve_ivp` API and other integrate functions.\n4. Return a concise summary: relevant files/modules, key entry points, and any implications or tweaks needed for the Phase 1 SOP steps (stub, wiring into namespace, tests) to align cleanly with the existing code.",
+  "requested_agent": "code_explorer",
+  "status": "active",
+  "steps": [],
+  "next_actions": [],
+  "summary": null
+}

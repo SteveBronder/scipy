@@ -1,5 +1,6 @@
 py3.install_sources([
     '__init__.py',
+    '_osc.py',
     'base.py',
     'bdf.py',
     'common.py',
