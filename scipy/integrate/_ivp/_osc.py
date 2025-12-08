@@ -3,6 +3,7 @@ import inspect
 import numpy as np
 
 from .ivp import OdeResult
+from . import _riccati as _ric
 
 
 def _validate_t_span(t_span):
@@ -171,6 +172,9 @@ def solve_ivp_osc(
 
     if not isinstance(vectorized, (bool, np.bool_)):
         raise TypeError("`vectorized` must be bool.")
+
+    # Call dummy extension to verify it's callable
+    _ = _ric._dummy_riccati(1)
 
     raise NotImplementedError("solve_ivp_osc is not implemented yet")
 

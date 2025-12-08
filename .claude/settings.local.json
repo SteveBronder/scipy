@@ -1,0 +1,19 @@
+{
+  "permissions": {
+    "allow": [
+      "mcp__serena__list_memories",
+      "mcp__serena__read_memory",
+      "mcp__serena__list_dir",
+      "Bash(pixi run build:*)",
+      "Bash(pixi run test:*)",
+      "Bash(PYTHONPATH=/Users/sbronder/opensource/scipy/build-install/usr/lib/python3.14/site-packages /Users/sbronder/opensource/scipy/.pixi/envs/test/bin/python3.14:*)",
+      "Bash(source:*)",
+      "Bash(python -m pip:*)",
+      "Bash(python:*)",
+      "mcp__serena__write_memory",
+      "mcp__serena__find_file"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}

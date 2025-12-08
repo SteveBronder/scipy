@@ -9,26 +9,26 @@ You are a senior developer familiar with SciPy's codebase and development practi
 
 ## Preconditions
 
-- [ ] Phase 1 SOP completed and tests passing.
-- [ ] You can successfully run `pixi run build` and `pixi run test ./scipy/integrate/`.
+- [x] Phase 1 SOP completed and tests passing.
+- [x] You can successfully run `pixi run build` and `pixi run test ./scipy/integrate/`.
 
 ---
 
 ## Step 1 – Create the Cython module
 
-- [ ] Create `scipy/integrate/_ivp/_riccati.pyx` with content similar to:
+- [x] Create `scipy/integrate/_ivp/_riccati.pyx` with content similar to:
   ```cython
   cpdef int _dummy_riccati(int x):
       return x
   ```
-- [ ] No Eigen or riccati headers should be used yet—keep it pure Cython for now.
+- [x] No Eigen or riccati headers should be used yet—keep it pure Cython for now.
 
 ---
 
 ## Step 2 – Integrate `_riccati` into meson
 
-- [ ] Open `scipy/integrate/meson.build`.
-- [ ] Add a new extension module definition for `_ivp._riccati`, for example:
+- [x] Open `scipy/integrate/meson.build`.
+- [x] Add a new extension module definition for `_ivp._riccati`, for example:
   ```meson
   py3.extension_module(
     '_ivp._riccati',
@@ -39,15 +39,15 @@ You are a senior developer familiar with SciPy's codebase and development practi
     subdir: 'scipy/integrate',
   )
   ```
-- [ ] Ensure the resulting shared library installs to `scipy/integrate/_ivp/_riccati.*.so`.
+- [x] Ensure the resulting shared library installs to `scipy/integrate/_ivp/_riccati.*.so`.
 
 ---
 
 ## Step 3 – Call the dummy extension from Python
 
-- [ ] In `scipy/integrate/_ivp/_osc.py`:
-  - [ ] Add `from . import _riccati as _ric` near the top.
-  - [ ] Inside `solve_ivp_osc`, before raising `NotImplementedError`, add a call like:
+- [x] In `scipy/integrate/_ivp/_osc.py`:
+  - [x] Add `from . import _riccati as _ric` near the top.
+  - [x] Inside `solve_ivp_osc`, before raising `NotImplementedError`, add a call like:
     ```python
     _ = _ric._dummy_riccati(1)
     ```
@@ -57,34 +57,34 @@ You are a senior developer familiar with SciPy's codebase and development practi
 
 ## Step 4 – Add tests for the dummy extension
 
-- [ ] Create `scipy/integrate/_ivp/tests/test_riccati_dummy.py`.
-- [ ] Add tests:
-  - [ ] Import test:
+- [x] Create `scipy/integrate/_ivp/tests/test_riccati_dummy.py`.
+- [x] Add tests:
+  - [x] Import test:
     ```python
     from scipy.integrate._ivp import _riccati
     ```
     should not raise.
-  - [ ] Behavior test:
-    - [ ] Assert `_riccati._dummy_riccati(5) == 5`.
+  - [x] Behavior test:
+    - [x] Assert `_riccati._dummy_riccati(5) == 5`.
 
 ---
 
 ## Step 5 – Build and test
 
-- [ ] Run:
-  - [ ] `pixi run build`
-  - [ ] `pixi run test ./scipy/integrate/`
-- [ ] Ensure that:
-  - [ ] `_ivp._riccati` builds on all CI platforms supported by SciPy.
-  - [ ] `solve_ivp_osc` still raises `NotImplementedError` but now successfully imports and calls `_dummy_riccati`.
+- [x] Run:
+  - [x] `pixi run build`
+  - [x] `pixi run test ./scipy/integrate/`
+- [x] Ensure that:
+  - [x] `_ivp._riccati` builds on all CI platforms supported by SciPy.
+  - [x] `solve_ivp_osc` still raises `NotImplementedError` but now successfully imports and calls `_dummy_riccati`.
 
 ---
 
 ## Exit criteria for Phase 2
 
-- [ ] `_ivp._riccati` is built and installed by meson.
-- [ ] The dummy function `_dummy_riccati` can be imported and called from Python.
-- [ ] Existing `solve_ivp_osc` stub test suite still passes.
+- [x] `_ivp._riccati` is built and installed by meson.
+- [x] The dummy function `_dummy_riccati` can be imported and called from Python.
+- [x] Existing `solve_ivp_osc` stub test suite still passes.
 
 ---
 
