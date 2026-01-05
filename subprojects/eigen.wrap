@@ -1,8 +1,5 @@
 [wrap-git]
-directory = eigen-3.4.0
-url = https://gitlab.com/libeigen/eigen.git
-revision = 3.4.0
-depth = 1
+directory = eigen
+url = https://github.com/meson-library/eigen.git
+revision = v3.3.7
 
-[provide]
-eigen3 = eigen3_dep

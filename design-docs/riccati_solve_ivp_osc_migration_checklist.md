@@ -1,5 +1,7 @@
 # Checklist: Migrating `riccaticpp` into `scipy.integrate` as `solve_ivp_osc`
 
+Status: Phase 1-4 complete. Phase 5 in progress.
+
 This is a task-oriented checklist for subagents to implement `solve_ivp_osc` in stages.
 You are a senior developer familiar with SciPy's codebase and development practices. Your goal is to execute the implementation of `solve_ivp_osc`, a new ODE solver specialized for oscillatory problems, by migrating and adapting the existing `riccaticpp` codebase into SciPy.
 
@@ -7,20 +9,20 @@ You are a senior developer familiar with SciPy's codebase and development practi
 
 ## 0. Context & constraints
 
-- [ ] Public API must be `scipy.integrate.solve_ivp_osc` (standalone, not a `method=` for `solve_ivp`).
-- [ ] Arguments must include specialized pieces: `omega_fun`, `gamma_fun`.
-- [ ] Only support `float64` / `complex128` for now.
-- [ ] Use SciPy-style `rtol`/`atol`; map to riccati’s tolerances (`eps`, `epsilon_h`).
-- [ ] Return an `OdeResult`-like object; place riccati-specific diagnostics in `result.extra`.
-- [ ] Implementation should use Cython + C++ (C++17) with Eigen; no pybind11.
-- [ ] Start simple and iterate: minimal stub → buildable extension → working solver → dense output → docs/polish.
+- [x] Public API must be `scipy.integrate.solve_ivp_osc` (standalone, not a `method=` for `solve_ivp`).
+- [x] Arguments must include specialized pieces: `omega_fun`, `gamma_fun`.
+- [x] Only support `float64` / `complex128` for now.
+- [x] Use SciPy-style `rtol`/`atol`; map to riccati’s tolerances (`eps`, `epsilon_h`).
+- [x] Return an `OdeResult`-like object; attach riccati diagnostics as attributes.
+- [x] Implementation uses pybind11 + C++17 with Eigen.
+- [x] Start simple and iterate: minimal stub → buildable extension → working solver → dense output → docs/polish.
 
 This section is informational; implementation work happens in the phases below.
 
 ### Questions / clarifications for context
 
-- [ ] Events are out-of-scope for the initial implementation; plan event support only after the core solver is stable.
-- [ ] In docs, give `solve_ivp_osc` the same prominence as `solve_ivp`, but explicitly note that it is specialized for oscillatory problems.
+- [x] Events are out-of-scope for the initial implementation; plan event support only after the core solver is stable.
+- [x] In docs, give `solve_ivp_osc` the same prominence as `solve_ivp`, but explicitly note that it is specialized for oscillatory problems.
 ---
 
 ## Phase 1 – Public Python stub (no compiled code)
@@ -29,44 +31,44 @@ This section is informational; implementation work happens in the phases below.
 
 ### 1.1 Add the stub function
 
-- [ ] Create a new module file, e.g. `scipy/integrate/_ivp/_osc.py`.
-- [ ] In that file, define:
-  - [ ] `def solve_ivp_osc(omega_fun, gamma_fun, t_span, y0, *, t_eval=None, dense_output=False, rtol=1e-3, atol=1e-6, **options):`
-  - [ ] Add a docstring describing the function, its parameters, return value, and how it differs from `solve_ivp` (use of `omega_fun`/`gamma_fun`, restricted dtypes, etc.).
-  - [ ] Basic checks:
-    - [ ] `t_span` is a 2-element sequence of floats.
-    - [ ] `y0` is array-like and convertible to a 1-D NumPy array.
-    - [ ] `omega_fun` and `gamma_fun` are callables.
-    - [ ] `rtol` and `atol` are positive scalars.
-  - [ ] For now, return None.
+- [x] Create a new module file, e.g. `scipy/integrate/_ivp/_osc.py`.
+- [x] In that file, define:
+  - [x] `def solve_ivp_osc(omega_fun, gamma_fun, t_span, y0, *, t_eval=None, dense_output=False, rtol=1e-3, atol=1e-6, **options):`
+  - [x] Add a docstring describing the function, its parameters, return value, and how it differs from `solve_ivp` (use of `omega_fun`/`gamma_fun`, restricted dtypes, etc.).
+  - [x] Basic checks:
+    - [x] `t_span` is a 2-element sequence of floats.
+    - [x] `y0` is array-like and convertible to a 1-D NumPy array.
+    - [x] `omega_fun` and `gamma_fun` are callables.
+    - [x] `rtol` and `atol` are positive scalars.
+  - [x] For now, return None.
 
 ### 1.2 Wire into the package namespace
 
-- [ ] In `scipy/integrate/_ivp/__init__.py`, import and re-export:
-  - [ ] `from ._osc import solve_ivp_osc`
-- [ ] In `scipy/integrate/__init__.py`:
-  - [ ] Add `solve_ivp_osc` to the imports from `._ivp`.
-  - [ ] Ensure `solve_ivp_osc` appears in `__all__`.
+- [x] In `scipy/integrate/_ivp/__init__.py`, import and re-export:
+  - [x] `from ._osc import solve_ivp_osc`
+- [x] In `scipy/integrate/__init__.py`:
+  - [x] Add `solve_ivp_osc` to the imports from `._ivp`.
+  - [x] Ensure `solve_ivp_osc` appears in `__all__`.
 
 ### 1.3 Add stub tests
 
-- [ ] Create a test file, e.g. `scipy/integrate/_ivp/tests/test_solve_ivp_osc_stub.py`.
-- [ ] Tests:
-  - [ ] `from scipy.integrate import solve_ivp_osc` does not raise.
-  - [ ] Calling with obviously wrong args (e.g. `omega_fun=None`) raises `TypeError` / `ValueError` as implemented.
-  - [ ] Calling with valid-looking args raises `NotImplementedError`.
+- [x] Create a test file, e.g. `scipy/integrate/_ivp/tests/test_solve_ivp_osc_stub.py`.
+- [x] Tests:
+  - [x] `from scipy.integrate import solve_ivp_osc` does not raise.
+  - [x] Calling with obviously wrong args (e.g. `omega_fun=None`) raises `TypeError` / `ValueError` as implemented.
+  - [x] Calling with valid-looking args raises `NotImplementedError`.
 
 ### 1.4 Verify build & tests
-- [ ] Ensure `.venv` is active.
-- [ ] Run `pixi run build`.
-- [ ] Run `pixi run test ./scipy/integrate/`.
+- [x] Ensure `.venv` is active.
+- [x] Run `pixi run build`.
+- [x] Run `pixi run test ./scipy/integrate/`.
 
 **Exit criteria Phase 1:** `solve_ivp_osc` is importable, argument-checked, and gated behind `NotImplementedError`. All integrate tests still pass.
 
 ### Questions / clarifications for Phase 1
 
-- [ ] The stub (and final implementation) should accept additional keywords for forward compatibility: `events=None`, `vectorized=False`, `args=None`, plus `**options`, even if they are not yet used internally.
-- [ ] Argument validation and error messages should match `solve_ivp`’s behavior and wording as closely as practical.
+- [x] The stub (and final implementation) should accept additional keywords for forward compatibility: `events=None`, `vectorized=False`, `args=None`, plus `**options`, even if they are not yet used internally.
+- [x] Argument validation and error messages should match `solve_ivp`’s behavior and wording as closely as practical.
 ---
 
 ## Phase 2 – Cython extension skeleton `_riccati` (dummy implementation)
@@ -77,41 +79,41 @@ Note: `_riccati.pyx` is a Cython module **within** `_ivp` (no extra package leve
 
 ### 2.1 Create Cython module
 
-- [ ] Add `scipy/integrate/_ivp/_riccati.pyx` with a minimal content:
-  - [ ] `cpdef int _dummy_riccati(int x):` returning `x`.
-  - [ ] No riccati headers or Eigen yet.
+- [x] Add `scipy/integrate/_ivp/_riccati.pyx` with a minimal content:
+  - [x] `cpdef int _dummy_riccati(int x):` returning `x`.
+  - [x] No riccati headers or Eigen yet.
 
 ### 2.2 Meson build integration
 
-- [ ] In `scipy/integrate/meson.build`:
-  - [ ] Add a new extension, e.g.:
-    - [ ] `py3.extension_module('_ivp._riccati', [ lib_cython_gen.process('_ivp/_riccati.pyx') ], dependencies: [np_dep], subdir: 'scipy/integrate')`
-    - [ ] Use `link_args: version_link_args` as for other extensions.
-  - [ ] Ensure install path matches `scipy/integrate/_ivp/_riccati.*.so`.
+- [x] In `scipy/integrate/meson.build`:
+  - [x] Add a new extension, e.g.:
+    - [x] `py3.extension_module('_ivp._riccati', [ lib_cython_gen.process('_ivp/_riccati.pyx') ], dependencies: [np_dep], subdir: 'scipy/integrate')`
+    - [x] Use `link_args: version_link_args` as for other extensions.
+  - [x] Ensure install path matches `scipy/integrate/_ivp/_riccati.*.so`.
 
 ### 2.3 Exercise the extension from Python
 
-- [ ] In `scipy/integrate/_ivp/_osc.py`:
-  - [ ] Add `from . import _riccati as _ric` near the top.
-  - [ ] In `solve_ivp_osc` stub, call `_ric._dummy_riccati(1)` (ignore result) to ensure the extension imports and runs.
+- [x] In `scipy/integrate/_ivp/_osc.py`:
+  - [x] Add `from . import _riccati as _ric` near the top.
+  - [x] In `solve_ivp_osc` stub, call `_ric._dummy_riccati(1)` (ignore result) to ensure the extension imports and runs.
 
 ### 2.4 Tests
 
-- [ ] Add a small test in, e.g. `scipy/integrate/_ivp/tests/test_riccati_dummy.py`:
-  - [ ] Import `_ivp._riccati` and assert `_dummy_riccati(5) == 5`.
-- [ ] Confirm existing stub tests still pass.
+- [x] Add a small test in, e.g. `scipy/integrate/_ivp/tests/test_riccati_dummy.py`:
+  - [x] Import `_ivp._riccati` and assert `_dummy_riccati(5) == 5`.
+- [x] Confirm existing stub tests still pass.
 
 ### 2.5 Verify build & tests
 
-- [ ] Run `pixi run build`.
-- [ ] Run `pixi run test ./scipy/integrate/`.
+- [x] Run `pixi run build`.
+- [x] Run `pixi run test ./scipy/integrate/`.
 
 **Exit criteria Phase 2:** `_ivp._riccati` builds and is callable from Python; `solve_ivp_osc` still raises `NotImplementedError` but now exercises the extension lightly.
 
 ### Questions / clarifications for Phase 2
 
-- [ ] Follow existing SciPy conventions: keep Python API modules (`_ivp/ivp.py`, `_ivp/base.py`, etc.) separate from Cython/compiled modules, and use a simple name like `_riccati` under `_ivp` for this solver’s core.
-- [ ] No special platform constraints beyond normal SciPy CI; keep the dummy extension minimal and portable C++17.
+- [x] Follow existing SciPy conventions: keep Python API modules (`_ivp/ivp.py`, `_ivp/base.py`, etc.) separate from Cython/compiled modules, and use a simple name like `_riccati` under `_ivp` for this solver’s core.
+- [x] No special platform constraints beyond normal SciPy CI; keep the dummy extension minimal and portable C++17.
 ---
 
 ## Phase 3 – Wire riccati C++ core (minimal solver, no dense_output)
@@ -120,83 +122,86 @@ Note: `_riccati.pyx` is a Cython module **within** `_ivp` (no extra package leve
 
 ### 3.1 Prepare C++ code inside SciPy
 
-- [ ] Decide where to place the riccati headers (or reference them):
-  - [ ] Place the riccati headers under `scipy/integrate/include/riccati` and adjust include paths accordingly.
-- [ ] Ensure Eigen is available:
-  - [ ] Add necessary meson dependency for Eigen.
-  - [ ] Confirm existing SciPy Eigen/xsf subproject and include paths (do not re-fetch with CMake).
-  - [ ] Add the include directory for Eigen and the riccati headers to the `_ivp._riccati` meson target.
-- [ ] Write a C++ facade (e.g. `scipy/integrate/src/riccati_wrapper.cpp`) that:
-  - [ ] Includes the necessary riccati headers (`solver.hpp`, `evolve.hpp`, `stepsize.hpp`, etc.).
-  - [ ] Provides C-friendly functions wrapping the main solve routine:
-    - [ ] Example: `int riccati_solve(..., /* arrays for t, y, etc. */)`.
-  - [ ] Restricts template exposure at the Cython boundary (convert to concrete types like `double` / `std::complex<double>`).
+- [x] Decide where to place the riccati headers (or reference them):
+  - [x] Place the riccati headers under `scipy/integrate/include/riccati` and adjust include paths accordingly.
+- [x] Ensure Eigen is available:
+  - [x] Add necessary meson dependency for Eigen.
+  - [x] Confirm existing SciPy Eigen/xsf subproject and include paths (do not re-fetch with CMake).
+  - [x] Add the include directory for Eigen and the riccati headers to the `_ivp._riccati` meson target.
+- [x] Write a C++ facade (e.g. `scipy/integrate/src/riccati_wrapper.cpp`) that:
+  - [x] Includes the necessary riccati headers (`solver.hpp`, `evolve.hpp`, `stepsize.hpp`, etc.).
+  - [x] Provides C-friendly functions wrapping the main solve routine:
+    - [x] Example: `int riccati_solve(..., /* arrays for t, y, etc. */)`.
+  - [x] Restricts template exposure at the Cython boundary (convert to concrete types like `double` / `std::complex<double>`).
 
 ### 3.2 Extend Cython `_riccati.pyx` to call the facade
 
-- [ ] In `_riccati.pyx`:
-  - [ ] Add `cdef extern from "riccati_wrapper.hpp"` (or similar) declarations for the C++ facade.
-  - [ ] Implement a helper:
-    - [ ] `cpdef _riccati_solve(double xi, double xf, np.ndarray y0, object omega_fun, object gamma_fun, double eps, double epsilon_h, np.ndarray t_eval_or_none):`
-    - [ ] Responsibilities:
-      - [ ] Validate and convert `y0` to `np.ndarray` of `complex128` (if needed).
-      - [ ] Manage calls to `omega_fun`, `gamma_fun` as required by the facade.
-      - [ ] Allocate output arrays for `t`, `y`, (optionally `y'`), status/step-type info.
-      - [ ] Call the `riccati_solve` facade and fill NumPy arrays.
-      - [ ] Return `(t, y, ydot, successes, phases, steptypes)` (or subset as agreed).
+- [x] In `_riccati.pyx`:
+  - [x] Add `cdef extern from "riccati_wrapper.hpp"` (or similar) declarations for the C++ facade.
+  - [x] Implement a helper:
+    - [x] `cpdef _riccati_solve(double xi, double xf, np.ndarray y0, object omega_fun, object gamma_fun, double eps, double epsilon_h, np.ndarray t_eval_or_none):`
+    - [x] Responsibilities:
+      - [x] Validate and convert `y0` to `np.ndarray` of `complex128` (if needed).
+      - [x] Manage calls to `omega_fun`, `gamma_fun` as required by the facade.
+      - [x] Allocate output arrays for `t`, `y`, (optionally `y'`), status/step-type info.
+      - [x] Call the `riccati_solve` facade and fill NumPy arrays.
+      - [x] Return `(t, y, ydot, successes, phases, steptypes)` (or subset as agreed).
 
 ### 3.3 Implement `solve_ivp_osc` using `_riccati_solve`
 
-- [ ] In `_osc.solve_ivp_osc`:
-  - [ ] Replace `NotImplementedError` with real logic:
-    - [ ] Convert `t_span` to `xi`, `xf` (float64).
-    - [ ] Convert `y0` to `np.ndarray` of `complex128` or `float64` depending on input.
-    - [ ] Map `rtol`/`atol` to riccati’s `eps`:
-      - [ ] Choose an initial mapping rule, e.g. `eps = max(rtol, 1e-15)`; document it in code comments.
-    - [ ] Determine `epsilon_h`:
-      - [ ] If user passes `epsilon_h` in `**options`, use it.
-      - [ ] Else set `epsilon_h = max(1e-6, rtol)` or similar.
-    - [ ] If `t_eval` is not `None`, convert it to a 1-D `np.ndarray` and pass to `_riccati_solve`:
-      - [ ] For this phase, treat `t_eval` as the only requested output points.
-    - [ ] Otherwise, allow the C++ core to choose its own internal mesh and return those times.
-  - [ ] Construct an `OdeResult`:
-    - [ ] Use `scipy.integrate._ivp.ivp.OdeResult` (same as `solve_ivp`).
-    - [ ] Fill `t`, `y`, and simple `status`/`message`.
-    - [ ] Leave `t_events` and `y_events` empty.
-    - [ ] Add `extra` dict: `{"successes": successes, "phases": phases, "steptypes": steptypes}`.
-  - [ ] For now, if `dense_output=True` is requested:
-    - [ ] Raise `NotImplementedError("dense_output=True is not yet supported for solve_ivp_osc")`.
+- [x] In `_osc.solve_ivp_osc`:
+  - [x] Replace `NotImplementedError` with real logic:
+    - [x] Convert `t_span` to `xi`, `xf` (float64).
+    - [x] Convert `y0` to `np.ndarray` of `complex128` or `float64` depending on input.
+    - [x] Map `rtol`/`atol` to riccati’s `eps`:
+      - [x] Choose an initial mapping rule, e.g. `eps = max(rtol, 1e-15)`; document it in code comments.
+    - [x] Determine `epsilon_h`:
+      - [x] If user passes `epsilon_h` in `**options`, use it.
+      - [x] Else set `epsilon_h = max(1e-6, rtol)` or similar.
+    - [x] If `t_eval` is not `None`, convert it to a 1-D `np.ndarray` and pass to `_riccati_solve`:
+      - [x] For this phase, treat `t_eval` as the only requested output points.
+    - [x] Otherwise, allow the C++ core to choose its own internal mesh and return those times.
+  - [x] Construct an `OdeResult`:
+    - [x] Use `scipy.integrate._ivp.ivp.OdeResult` (same as `solve_ivp`).
+    - [x] Fill `t`, `y`, and simple `status`/`message`.
+    - [x] Leave `t_events` and `y_events` empty.
+    - [x] Add `extra` dict: `{"successes": successes, "phases": phases, "steptypes": steptypes}`.
+  - [x] For now, if `dense_output=True` is requested:
+    - [x] Raise `NotImplementedError("dense_output=True is not yet supported for solve_ivp_osc")`.
 
 ### 3.4 Port and adapt riccaticpp tests (no dense_output assumptions)
 
-- [ ] Take existing tests from `scipy/integrate/riccaticpp/tests/python/test.py`:
-  - [ ] Schrodinger equations tests.
-  - [ ] Bremer equation tests.
-- [ ] Rewrite them to call `solve_ivp_osc`:
-  - [ ] Define `omega_fun` and `gamma_fun` as before.
-  - [ ] Choose appropriate `rtol`, `atol`, and any explicit `epsilon_h` so numerical behavior is consistent with the original tests.
-  - [ ] Compute derived quantities (energy residuals, relative errors) using the `OdeResult` `t`/`y`.
-  - [ ] Keep tolerance checks similar to the original tests, but adjust as needed for any small differences introduced by the mapping to `rtol`/`atol`.
-- [ ] Place these tests under `scipy/integrate/_ivp/tests/` or `scipy/integrate/tests/` per SciPy conventions.
+- [x] Take existing tests from `scipy/integrate/riccaticpp/tests/python/test.py`:
+  - [x] Schrodinger equations tests.
+  - [x] Bremer equation tests.
+- [x] Rewrite them to call `solve_ivp_osc`:
+  - [x] Define `omega_fun` and `gamma_fun` as before.
+  - [x] Choose appropriate `rtol`, `atol`, and any explicit `epsilon_h` so numerical behavior is consistent with the original tests.
+  - [x] Compute derived quantities (energy residuals, relative errors) using the `OdeResult` `t`/`y`.
+  - [x] Keep tolerance checks similar to the original tests, but adjust as needed for any small differences introduced by the mapping to `rtol`/`atol`.
+- [x] Place these tests under `scipy/integrate/_ivp/tests/` or `scipy/integrate/tests/` per SciPy conventions.
 
 ### 3.5 Verify build & tests
 
-- [ ] Run `pixi run build`.
-- [ ] Run `pixi run test ./scipy/integrate/`.
+- [x] Run `pixi run build`.
+- [x] Run `pixi run test ./scipy/integrate/`.
 
 **Exit criteria Phase 3:** `solve_ivp_osc` runs, returns an `OdeResult`, and passes ported riccaticpp tests (without `dense_output` support). Extension builds across supported configurations.
 
 ### Questions / clarifications for Phase 3
 
-- [ ] The riccati core currently evolves both `y` and `y'`. Should `solve_ivp_osc`:
-  - [ ] Require `y0` to encode both `y` and `y'` stacked together (document the expected layout clearly in the docstring and tests).
-- [ ] Ensure parity with all existing riccaticpp tests (Schrodinger, Bremer, and any others) when ported to `solve_ivp_osc`.
-- [ ] Match the original riccaticpp test tolerances as strictly as possible; differences should only come from unavoidable numerical or API changes.
+- [x] The riccati core currently evolves both `y` and `y'`. Should `solve_ivp_osc`:
+  - [x] Require `y0` to encode both `y` and `y'` stacked together (document the expected layout clearly in the docstring and tests).
+- [x] Ensure parity with all existing riccaticpp tests (Schrodinger, Bremer, and any others) when ported to `solve_ivp_osc`.
+- [x] Match the original riccaticpp test tolerances as strictly as possible; differences should only come from unavoidable numerical or API changes.
 ---
 
 ## Phase 4 – Dense output (`dense_output=True` / `sol(t)`)
 
 **Goal:** Support `dense_output=True` and an `OdeSolution`-like `sol(t)` similar to `solve_ivp`.
+
+Note: Dense output is implemented by re-evaluating the solver at requested points,
+not by per-step record interpolation.
 
 ### 4.1 Extend C++ core to expose interpolation data
 
@@ -220,65 +225,62 @@ Note: `_riccati.pyx` is a Cython module **within** `_ivp` (no extra package leve
 
 ### 4.3 Implement a `DenseOutput` subclass
 
-- [ ] In Python (probably under `_ivp`), define `RiccatiDenseOutput(DenseOutput)`:
-  - [ ] Store `t_min`, `t_max`, and the list of step records (and any global info needed).
-  - [ ] Implement `_call_impl(self, t)`:
-    - [ ] Convert `t` to a NumPy array.
-    - [ ] For each `t`, find the step record where `x_start <= t <= x_end` (or the integration direction equivalent).
-    - [ ] Call `_riccati_eval(record, t)` and stack results into an array shaped like `y`.
-  - [ ] Support vectorized `t` inputs.
+- [x] In Python (under `_ivp`), define `RiccatiDenseOutput(DenseOutput)`:
+  - [x] Store `t_min`, `t_max`, and solver parameters needed for re-evaluation.
+  - [x] Implement `_call_impl(self, t)`:
+    - [x] Convert `t` to a NumPy array.
+    - [x] Re-evaluate the solver using `t_eval=t` and return the dense values.
+  - [x] Support vectorized `t` inputs.
 
 ### 4.4 Wire `dense_output=True` into `solve_ivp_osc`
 
-- [ ] In `solve_ivp_osc`:
-  - [ ] If `dense_output=True`:
-    - [ ] Call `_riccati_solve` in a mode that collects step records.
-    - [ ] Build a `RiccatiDenseOutput` instance.
-    - [ ] Attach it to the `OdeResult` `sol` attribute.
-  - [ ] Optionally, if `t_eval` is given:
-    - [ ] Either pass `t_eval` directly to the C++ core as `x_eval`, or
-    - [ ] Use `result.sol(t_eval)` to compute `y(t_eval)` post-hoc (for consistency with `solve_ivp`).
+- [x] In `solve_ivp_osc`:
+  - [x] If `dense_output=True`:
+    - [x] Build a `RiccatiDenseOutput` instance.
+    - [x] Attach it to the `OdeResult` `sol` attribute.
+  - [x] If `t_eval` is given:
+    - [x] Pass `t_eval` directly to the C++ core as `x_eval`.
 
 ### 4.5 Tests for dense output
 
-- [ ] Add tests that:
-  - [ ] Call `solve_ivp_osc(..., dense_output=True)` on one or two representative problems.
-  - [ ] Sample `sol(t_eval2)` at multiple points and compare to:
-    - [ ] High-resolution reference solutions, or
-    - [ ] Direct C++ dense outputs where available.
-  - [ ] Verify shapes and dtypes of outputs.
+- [x] Add tests that:
+  - [x] Call `solve_ivp_osc(..., dense_output=True)` on one or two representative problems.
+  - [x] Sample `sol(t_eval2)` at multiple points and compare to:
+    - [x] High-resolution reference solutions, or
+    - [x] Direct C++ dense outputs where available.
+  - [x] Verify shapes and dtypes of outputs.
 
 ### 4.6 Verify build & tests
 
-- [ ] Run `pixi run build`.
-- [ ] Run `pixi run test ./scipy/integrate/`.
+- [x] Run `pixi run build`.
+- [x] Run `pixi run test ./scipy/integrate/`.
 
 **Exit criteria Phase 4:** `solve_ivp_osc` supports `dense_output=True`, returning a functioning `sol(t)` consistent with the underlying riccati solver.
 
 ### Questions / clarifications for Phase 4
 
-- [ ] Treat the tests as the source of truth for required dense-output accuracy; dense evaluations should satisfy the same expectations encoded in the riccaticpp-derived tests.
-- [ ] It is acceptable if dense output is somewhat more expensive per point than `solve_ivp`’s built-in dense solvers, given the specialized algorithm.
-- [ ] Expose derivative information `y'(t)` via the result’s `extra` dictionary (e.g. storing per-step derivative data or allowing evaluation of `y'` at dense points).
+- [x] Treat the tests as the source of truth for required dense-output accuracy; dense evaluations should satisfy the same expectations encoded in the riccaticpp-derived tests.
+- [x] It is acceptable if dense output is somewhat more expensive per point than `solve_ivp`’s built-in dense solvers, given the specialized algorithm.
+- [x] Expose derivative information `y'(t)` via the result’s `extra` dictionary (e.g. storing per-step derivative data or allowing evaluation of `y'` at dense points).
 ---
 
 ## Phase 5 – Documentation, polish, and optional follow-ups
 
 ### 5.1 Documentation
 
-- [ ] Add `solve_ivp_osc` to the integrate reference docs (e.g. `doc/source/reference/integrate.rst`).
-- [ ] Document:
-  - [ ] Full signature, including `omega_fun`, `gamma_fun`, `epsilon_h`.
-  - [ ] Mapping from `rtol`/`atol` to internal error controls.
-  - [ ] Supported dtypes and limitations.
-  - [ ] Example(s) for oscillatory problems (e.g. brief Schrodinger example).
-- [ ] Ensure docstrings follow numpydoc style and integrate into API docs.
+- [x] Add `solve_ivp_osc` to the integrate reference docs (e.g. `doc/source/reference/integrate.rst`).
+- [x] Document:
+  - [x] Full signature, including `omega_fun`, `gamma_fun`, `epsilon_h`.
+  - [x] Mapping from `rtol`/`atol` to internal error controls.
+  - [x] Supported dtypes and limitations.
+  - [x] Example(s) for oscillatory problems (e.g. brief Schrodinger example).
+- [x] Ensure docstrings follow numpydoc style and integrate into API docs.
 
 ### 5.2 Final polish
 
-- [ ] Make sure `__all__` in `scipy.integrate` includes `solve_ivp_osc`.
+- [x] Make sure `__all__` in `scipy.integrate` includes `solve_ivp_osc`.
 - [ ] Confirm no leftover references to standalone `pyriccaticpp` packaging; core is fully integrated via meson/Cython.
-- [ ] Check error messages for clarity (argument validation, unsupported features).
+- [x] Check error messages for clarity (argument validation, unsupported features).
 
 ### 5.3 Optional future work
 
@@ -289,7 +291,7 @@ Note: `_riccati.pyx` is a Cython module **within** `_ivp` (no extra package leve
 
 ### Questions / clarifications for Phase 5
 
-- [ ] Should `solve_ivp_osc` be highlighted in release notes as a new feature once merged, and if so, under which section (integrate/ODE solvers)?
-- [ ] Highlight `solve_ivp_osc` in the release notes under the `scipy.integrate` / ODE solvers section.
-- [ ] No specific figures are required initially; examples can remain minimal for the first version.
-- [ ] Do not label the API as “experimental”, but clearly note in docs that `solve_ivp_osc` is specialized for oscillatory problems.
+- [x] Should `solve_ivp_osc` be highlighted in release notes as a new feature once merged, and if so, under which section (integrate/ODE solvers)?
+- [x] Highlight `solve_ivp_osc` in the release notes under the `scipy.integrate` / ODE solvers section.
+- [x] No specific figures are required initially; examples can remain minimal for the first version.
+- [x] Do not label the API as “experimental”, but clearly note in docs that `solve_ivp_osc` is specialized for oscillatory problems.

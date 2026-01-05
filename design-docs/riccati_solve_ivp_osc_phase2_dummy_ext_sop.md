@@ -5,6 +5,10 @@ You are a senior developer familiar with SciPy's codebase and development practi
 
 **Goal:** Add a minimal Cython C++ extension to the SciPy build so the meson and Cython plumbing are proven before integrating the riccati algorithm.
 
+**Status (post-Phase 3):** The dummy extension is now provided by the pybind11 module
+(`scipy/integrate/_ivp/_riccati_pybind.cpp`), and `solve_ivp_osc` no longer raises
+`NotImplementedError`.
+
 ---
 
 ## Preconditions
@@ -90,6 +94,7 @@ You are a senior developer familiar with SciPy's codebase and development practi
 
 ## Additional questions for Phase 2
 
-- [ ] Are there any SciPy-internal naming/preferences for compiled modules beyond the `_ivp._name` pattern that we should conform to?
-- [ ] Should this phase also add minimal type annotations in `_riccati.pyx` (e.g. `int` vs `Py_ssize_t`) for consistency with other Cython modules, or is that premature?
-
+- [x] Are there any SciPy-internal naming/preferences for compiled modules beyond the `_ivp._name` pattern that we should conform to?
+      Decision: stick with `_ivp._riccati` to match existing SciPy compiled module naming.
+- [x] Should this phase also add minimal type annotations in `_riccati.pyx` (e.g. `int` vs `Py_ssize_t`) for consistency with other Cython modules, or is that premature?
+      Decision: N/A; the module migrated to pybind11 in Phase 3, so no Cython annotations are needed.

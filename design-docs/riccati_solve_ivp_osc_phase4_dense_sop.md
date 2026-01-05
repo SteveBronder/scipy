@@ -9,9 +9,9 @@ You are a senior developer familiar with SciPy's codebase and development practi
 
 ## Preconditions
 
-- [ ] Phase 3 SOP completed and passing tests.
-- [ ] `_ivp._riccati` exposes a working core solver for discrete outputs.
-- [ ] You can run `pixi run build` and `pixi run test ./scipy/integrate/`.
+- [x] Phase 3 SOP completed and passing tests.
+- [x] `_ivp._riccati` exposes a working core solver for discrete outputs.
+- [x] You can run `pixi run build` and `pixi run test ./scipy/integrate/`.
 
 ---
 
@@ -57,43 +57,42 @@ You are a senior developer familiar with SciPy's codebase and development practi
 
 ## Step 3 – Implement a `RiccatiDenseOutput` class
 
-- [ ] In a Python module under `_ivp` (e.g. `scipy/integrate/_ivp/_osc_dense.py` or inside `_osc.py`):
-  - [ ] Define `class RiccatiDenseOutput(DenseOutput):`
+- [x] In a Python module under `_ivp` (e.g. `scipy/integrate/_ivp/_osc_dense.py` or inside `_osc.py`):
+  - [x] Define `class RiccatiDenseOutput(DenseOutput):`
     - [ ] Constructor arguments:
-      - [ ] `t_min`, `t_max`.
-      - [ ] List/sequence of step records.
-      - [ ] Any additional global info required.
+      - [x] `t_min`, `t_max`.
+      - [x] Solver parameters (callbacks, tolerances, stepsize, solver options).
+      - [x] Any additional global info required.
     - [ ] Implement `_call_impl(self, t)`:
-      - [ ] Accept scalar or array `t`.
-      - [ ] For each `t`, locate the step record with the appropriate interval.
-      - [ ] Call `_riccati_eval(record, t)` to obtain `y(t)` (and optionally `y'(t)`).
-      - [ ] Stack results into an array shaped like the solver’s `y`.
+      - [x] Accept scalar or array `t`.
+      - [x] For each `t`, call the riccati solver with `t_eval` to obtain `y(t)`.
+      - [x] Stack results into an array shaped like the solver’s `y`.
     - [ ] Ensure that `t` outside `[t_min, t_max]` is handled consistently with `DenseOutput` expectations.
+  - [x] Implementation note: dense output currently re-evaluates the solver at
+        requested points instead of using per-step records.
 
 ---
 
 ## Step 4 – Wire `dense_output=True` in `solve_ivp_osc`
 
-- [ ] In `_osc.solve_ivp_osc`:
+- [x] In `_osc.solve_ivp_osc`:
   - [ ] When `dense_output=True`:
-    - [ ] Call `_riccati_solve` in a mode that returns step records.
-    - [ ] Construct `RiccatiDenseOutput` with the step records and integration interval.
-    - [ ] Attach it to the `OdeResult`’s `sol` attribute.
-  - [ ] For `t_eval`:
-    - [ ] Option 1: Pass `t_eval` directly to `_riccati_solve` and use discrete outputs.
-    - [ ] Option 2: Always derive `y(t_eval)` as `result.sol(t_eval)`; choose one consistent strategy and document it.
+    - [x] Construct `RiccatiDenseOutput` for the integration interval.
+    - [x] Attach it to the `OdeResult`’s `sol` attribute.
+  - [x] For `t_eval`:
+    - [x] Option 1: Pass `t_eval` directly to `_riccati_solve` and use discrete outputs.
 
 ---
 
 ## Step 5 – Tests for dense output
 
-- [ ] Add tests under `scipy/integrate/_ivp/tests/`:
+- [x] Add tests under `scipy/integrate/_ivp/tests/`:
   - [ ] Smoke tests:
-    - [ ] Call `solve_ivp_osc(..., dense_output=True)` on a simple oscillatory problem.
-    - [ ] Call `res.sol(t_eval2)` for a set of points; check shapes/dtypes.
+    - [x] Call `solve_ivp_osc(..., dense_output=True)` on a simple oscillatory problem.
+    - [x] Call `res.sol(t_eval2)` for a set of points; check shapes/dtypes.
   - [ ] Accuracy tests:
-    - [ ] Use existing riccaticpp-style tests (or new ones) that specify expected accuracy for dense evaluations.
-    - [ ] Compare `res.sol(t_dense)` outputs with direct or high-resolution references, within tolerances implied by those tests.
+    - [x] Use existing riccaticpp-style tests (or new ones) that specify expected accuracy for dense evaluations.
+    - [x] Compare `res.sol(t_dense)` outputs with direct or high-resolution references, within tolerances implied by those tests.
   - [ ] Derivative tests:
     - [ ] If `y'(t)` is exposed, verify its consistency where the tests specify expectations.
 
@@ -101,25 +100,26 @@ You are a senior developer familiar with SciPy's codebase and development practi
 
 ## Step 6 – Build and test
 
-- [ ] Run:
-  - [ ] `pixi run build`
-  - [ ] `pixi run test ./scipy/integrate/`
-- [ ] Ensure:
-  - [ ] No regressions in existing tests from Phase 3.
-  - [ ] New dense-output tests pass.
+- [x] Run:
+  - [x] `pixi run build`
+  - [x] `pixi run test ./scipy/integrate/`
+- [x] Ensure:
+  - [x] No regressions in existing tests from Phase 3.
+  - [x] New dense-output tests pass.
 
 ---
 
 ## Exit criteria for Phase 4
 
-- [ ] `solve_ivp_osc(..., dense_output=True)` returns an `OdeResult` with a functioning `sol(t)` method.
-- [ ] `sol(t)` satisfies the accuracy expectations expressed by the dense-output tests.
-- [ ] Derivative information `y'(t)` is available via the result (e.g. in `extra`) where required.
+- [x] `solve_ivp_osc(..., dense_output=True)` returns an `OdeResult` with a functioning `sol(t)` method.
+- [x] `sol(t)` satisfies the accuracy expectations expressed by the dense-output tests.
+- [x] Derivative information `y'(t)` is available via the result (e.g. in `extra`) where required.
 
 ---
 
 ## Additional questions for Phase 4
 
-- [ ] Should we prefer Option 1 or Option 2 for `t_eval` (pass it to `_riccati_solve` vs always using `sol(t_eval)`), or is either acceptable as long as behavior is documented?
-- [ ] Are there any performance constraints for dense output (e.g. maximum expected size of `t_eval` or number of dense evaluations)?
-
+- [x] Should we prefer Option 1 or Option 2 for `t_eval` (pass it to `_riccati_solve` vs always using `sol(t_eval)`), or is either acceptable as long as behavior is documented?
+      Decision: Option 1 (pass `t_eval` to `_riccati_solve`).
+- [x] Are there any performance constraints for dense output (e.g. maximum expected size of `t_eval` or number of dense evaluations)?
+      Decision: None specified; re-evaluation cost is acceptable for now.

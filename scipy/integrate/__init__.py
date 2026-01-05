@@ -57,10 +57,15 @@ Solving initial value problems for ODE systems
 The solvers are implemented as individual classes, which can be used directly
 (low-level usage) or through a convenience function.
 
+The solver :func:`solve_ivp_osc` targets oscillatory second-order problems and
+accepts ``omega_fun`` and ``gamma_fun`` callbacks alongside ``epsilon_h`` for
+stepsize selection; it is complementary to :func:`solve_ivp`.
+
 .. autosummary::
    :toctree: generated/
 
    solve_ivp     -- Convenient function for ODE integration.
+   solve_ivp_osc -- Specialized solver for oscillatory ODEs.
    RK23          -- Explicit Runge-Kutta solver of order 3(2).
    RK45          -- Explicit Runge-Kutta solver of order 5(4).
    DOP853        -- Explicit Runge-Kutta solver of order 8.

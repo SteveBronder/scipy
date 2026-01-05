@@ -3,12 +3,16 @@
  *
  * This file provides a C-compatible interface to the templated riccati solver,
  * handling Python callbacks and type dispatch.
+ *
+ * Uses npy_cdouble for complex types which is binary-compatible with
+ * std::complex<double> and works seamlessly with NumPy and Cython.
  */
 
 #ifndef RICCATI_WRAPPER_HPP
 #define RICCATI_WRAPPER_HPP
 
 #include <Python.h>
+#include "numpy/npy_math.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -72,8 +76,10 @@ void riccati_solver_free(void* solver_handle);
  *     Opaque solver handle
  * xi, xf : double
  *     Integration interval [xi, xf]
- * yi, dyi : double complex
- *     Initial conditions y(xi) and y'(xi)
+ * yi_real, yi_imag : double
+ *     Initial condition y(xi) as real/imag parts
+ * dyi_real, dyi_imag : double
+ *     Initial condition y'(xi) as real/imag parts
  * eps : double
  *     Relative tolerance for steps
  * epsilon_h : double
@@ -90,9 +96,9 @@ void riccati_solver_free(void* solver_handle);
  *     OUTPUT: number of output points
  * t_out : double**
  *     OUTPUT: time points (allocated by this function)
- * y_out : double complex**
+ * y_out : npy_cdouble**
  *     OUTPUT: solution values (allocated by this function)
- * ydot_out : double complex**
+ * ydot_out : npy_cdouble**
  *     OUTPUT: derivative values (allocated by this function)
  * success_out : int**
  *     OUTPUT: success flags (allocated by this function)
@@ -108,7 +114,8 @@ void riccati_solver_free(void* solver_handle);
 int riccati_solve(
     void* solver_handle,
     double xi, double xf,
-    double complex yi, double complex dyi,
+    double yi_real, double yi_imag,
+    double dyi_real, double dyi_imag,
     double eps,
     double epsilon_h,
     double init_stepsize,
@@ -116,8 +123,8 @@ int riccati_solve(
     int hard_stop,
     int* n_out,
     double** t_out,
-    double complex** y_out,
-    double complex** ydot_out,
+    npy_cdouble** y_out,
+    npy_cdouble** ydot_out,
     int** success_out,
     double** phase_out,
     int** steptype_out
