@@ -890,7 +890,7 @@ def solveh_banded(ab, b, overwrite_ab=False, overwrite_b=False, lower=False,
     matrices.
 
     The matrix ``a`` is stored in `ab` either in lower diagonal or upper
-    diagonal ordered form:
+    diagonal ordered form::
 
         ab[u + i - j, j] == a[i,j]        (if upper form; i <= j)
         ab[    i - j, j] == a[i,j]        (if lower form; i >= j)
@@ -1197,15 +1197,8 @@ def solve_circulant(c, b, singular='raise', tol=None,
 
     Notes
     -----
-    For a 1-D vector `c` with length `m`, and an array `b`
-    with shape ``(m, ...)``,
-
-        solve_circulant(c, b)
-
-    returns the same result as
-
-        solve(circulant(c), b)
-
+    For a 1-D vector `c` with length `m`, and an array `b` with shape ``(m, ...)``,
+    ``solve_circulant(c, b)`` returns the same result as ``solve(circulant(c), b)``
     where `solve` and `circulant` are from `scipy.linalg`.
 
     .. versionadded:: 0.16.0
@@ -1337,7 +1330,7 @@ def solve_circulant(c, b, singular='raise', tol=None,
 
 
 # matrix inversion
-def inv(a, overwrite_a=False, check_finite=True, assume_a=None, lower=False):
+def inv(a, overwrite_a=False, check_finite=True, *, assume_a=None, lower=False):
     r"""
     Compute the inverse of a matrix.
 
@@ -1396,6 +1389,16 @@ def inv(a, overwrite_a=False, check_finite=True, assume_a=None, lower=False):
     ValueError
         If `a` is not square, or not 2D.
 
+    Notes
+    -----
+
+    The input array ``a`` may represent a single matrix or a collection (a.k.a.
+    a "batch") of square matrices. For example, if ``a.shape == (4, 3, 2, 2)``, it is
+    interpreted as a ``(4, 3)``-shaped batch of :math:`2\times 2` matrices.
+
+    This routine checks the condition number of the `a` matrix and emits a
+    `LinAlgWarning` for ill-conditioned inputs.
+
     Examples
     --------
     >>> import numpy as np
@@ -1407,17 +1410,6 @@ def inv(a, overwrite_a=False, check_finite=True, assume_a=None, lower=False):
     >>> np.dot(a, linalg.inv(a))
     array([[ 1.,  0.],
            [ 0.,  1.]])
-
-    Notes
-    -----
-
-    The input array ``a`` may represent a single matrix or a collection (a.k.a.
-    a "batch") of square matrices. For example, if ``a.shape == (4, 3, 2, 2)``, it is
-    interpreted as a ``(4, 3)``-shaped batch of :math:`2\times 2` matrices.
-
-    This routine checks the condition number of the `a` matrix and emits a
-    `LinAlgWarning` for ill-conditioned inputs.
-
     """
     a1 = _asarray_validated(a, check_finite=check_finite)
 
@@ -1857,7 +1849,7 @@ def pinv(a, *, atol=None, rtol=None, return_rank=False, check_finite=True):
     ----------
     .. [1] Penrose, R. (1956). On best approximate solutions of linear matrix
            equations. Mathematical Proceedings of the Cambridge Philosophical
-           Society, 52(1), 17-19. doi:10.1017/S0305004100030929
+           Society, 52(1), 17-19. :doi:`10.1017/S0305004100030929`.
 
     Examples
     --------

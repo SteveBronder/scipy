@@ -17,7 +17,8 @@ import pytest
 from pytest import raises as assert_raises
 
 from scipy import optimize, stats, special
-from scipy.stats._morestats import _abw_state, _get_As_weibull, _Avals_weibull
+from scipy.stats._morestats import (_abw_state, _get_As_weibull, _Avals_weibull,
+                                    _yeojohnson_transform)
 from .common_tests import check_named_results
 from .._hypotests import _get_wilcoxon_distr, _get_wilcoxon_distr2
 from scipy.stats._binomtest import _binary_search_for_binom_tst
@@ -253,6 +254,7 @@ class TestShapiro:
         assert_allclose(res.pvalue, 0.2313666489882, rtol=1e-6)
 
 
+@pytest.mark.filterwarnings("ignore: As of SciPy 1.17: FutureWarning")
 class TestAnderson:
     def test_normal(self):
         rs = RandomState(1234567890)
@@ -397,6 +399,89 @@ class TestAnderson:
         assert_equal(_get_As_weibull(1/m), _Avals_weibull[0])
 
 
+class TestAndersonMethod:
+    def test_warning(self):
+        message = "As of SciPy 1.17, users..."
+        with pytest.warns(FutureWarning, match=message):
+            stats.anderson([1, 2, 3], 'norm')
+
+    def test_method_input_validation(self):
+        message = "`method` must be either..."
+        with pytest.raises(ValueError, match=message):
+            stats.anderson([1, 2, 3], 'norm', method='ekki-ekki')
+
+    def test_monte_carlo_method(self):
+        rng = np.random.default_rng(94982389149239)
+
+        message = "The `rvs` attribute..."
+        with pytest.warns(UserWarning, match=message):
+            method = stats.MonteCarloMethod(rvs=rng.random)
+            stats.anderson([1, 2, 3], 'norm', method=method)
+
+        message = "The `batch` attribute..."
+        with pytest.warns(UserWarning, match=message):
+            method = stats.MonteCarloMethod(batch=10)
+            stats.anderson([1, 2, 3], 'norm', method=method)
+
+        method = stats.MonteCarloMethod(n_resamples=9, rng=rng)
+        res = stats.anderson([1, 2, 3], 'norm', method=method)
+        ten_p = res.pvalue * 10
+        # p-value will always be divisible by n_resamples + 1
+        assert np.round(ten_p) == ten_p
+
+        method = stats.MonteCarloMethod(rng=np.random.default_rng(23495984827))
+        ref = stats.anderson([1, 2, 3, 4, 5], 'norm', method=method)
+        method = stats.MonteCarloMethod(rng=np.random.default_rng(23495984827))
+        res = stats.anderson([1, 2, 3, 4, 5], 'norm', method=method)
+        assert res.pvalue == ref.pvalue  # same random state -> same p-value
+        method = stats.MonteCarloMethod(rng=np.random.default_rng(23495984828))
+        res = stats.anderson([1, 2, 3, 4, 5], 'norm', method=method)
+        assert res.pvalue != ref.pvalue  # different random state -> different p-value
+
+    @pytest.mark.parametrize('dist_name, seed',
+        [('norm', 4202165767275),
+         ('expon', 9094400417269),
+         pytest.param('logistic', 3776634590070, marks=pytest.mark.xslow),
+         pytest.param('gumbel_l', 7966588969335, marks=pytest.mark.xslow),
+         pytest.param('gumbel_r', 1886450383828, marks=pytest.mark.xslow)])
+    def test_method_consistency(self, dist_name, seed):
+        dist = getattr(stats, dist_name)
+        rng = np.random.default_rng(seed)
+        x = dist.rvs(size=50, random_state=rng)
+        ref = stats.anderson(x, dist_name, method='interpolate')
+        res = stats.anderson(x, dist_name, method=stats.MonteCarloMethod(rng=rng))
+        np.testing.assert_allclose(res.statistic, ref.statistic)
+        np.testing.assert_allclose(res.pvalue, ref.pvalue, atol=0.005)
+
+    @pytest.mark.parametrize('dist_name',
+        ['norm', 'expon', 'logistic', 'gumbel_l', 'gumbel_r', 'weibull_min'])
+    def test_interpolate_saturation(self, dist_name):
+        dist = getattr(stats, dist_name)
+        rng = np.random.default_rng(4202165767276)
+        args = (3.5,) if dist_name == 'weibull_min' else tuple()
+        x = dist.rvs(*args, size=50, random_state=rng)
+
+        with pytest.warns(FutureWarning):
+            res = stats.anderson(x, dist_name)
+        pvalues = (1 - np.asarray(res.significance_level) if dist_name == 'weibull_min'
+                   else np.asarray(res.significance_level) / 100)
+        pvalue_min = np.min(pvalues)
+        pvalue_max = np.max(pvalues)
+        statistic_min = np.min(res.critical_values)
+        statistic_max = np.max(res.critical_values)
+
+        # data drawn from distribution -> low statistic / high p-value
+        res = stats.anderson(x, dist_name, method='interpolate')
+        assert res.statistic < statistic_min
+        assert res.pvalue == pvalue_max
+
+        # data not from distribution -> high statistic / low p-value
+        res = stats.anderson(rng.random(size=50), dist_name, method='interpolate')
+        assert res.statistic > statistic_max
+        assert res.pvalue == pvalue_min
+
+
+@pytest.mark.filterwarnings("ignore:Parameter `variant`...:UserWarning")
 class TestAndersonKSamp:
     def test_example1a(self):
         # Example data from Scholz & Stephens (1987), originally
@@ -604,6 +689,63 @@ class TestAndersonKSamp:
         assert_equal(res.significance_level, res.pvalue)
 
 
+class TestAndersonKSampVariant:
+    def test_variant_values(self):
+        x = [1, 2, 2, 3, 4, 5]
+        y = [1, 2, 3, 4, 4, 5, 6, 6, 6, 7]
+        message = "Parameter `variant` has been introduced..."
+        with pytest.warns(UserWarning, match=message):
+            ref = stats.anderson_ksamp((x, y))
+        assert len(ref) == 3 and hasattr(ref, 'critical_values')
+
+        with pytest.warns(UserWarning, match=message):
+            res = stats.anderson_ksamp((x, y), midrank=True)
+        assert_equal(res.statistic, ref.statistic)
+        assert_equal(res.pvalue, ref.pvalue)
+        assert len(res) == 3 and hasattr(res, 'critical_values')
+
+        with pytest.warns(UserWarning, match=message):
+            res = stats.anderson_ksamp((x, y), midrank=False, variant='midrank')
+        assert_equal(res.statistic, ref.statistic)
+        assert_equal(res.pvalue, ref.pvalue)
+        assert not hasattr(res, 'critical_values')
+
+        res = stats.anderson_ksamp((x, y), variant='midrank')
+        assert_equal(res.statistic, ref.statistic)
+        assert_equal(res.pvalue, ref.pvalue)
+        assert not hasattr(res, 'critical_values')
+
+        with pytest.warns(UserWarning, match=message):
+            ref = stats.anderson_ksamp((x, y), midrank=False)
+        assert len(ref) == 3 and hasattr(ref, 'critical_values')
+
+        with pytest.warns(UserWarning, match=message):
+            res = stats.anderson_ksamp((x, y), midrank=True, variant='right')
+        assert_equal(res.statistic, ref.statistic)
+        assert_equal(res.pvalue, ref.pvalue)
+        assert not hasattr(res, 'critical_values')
+
+        res = stats.anderson_ksamp((x, y), variant='right')
+        assert_equal(res.statistic, ref.statistic)
+        assert_equal(res.pvalue, ref.pvalue)
+        assert not hasattr(res, 'critical_values')
+
+    def test_variant_input_validation(self):
+        x = np.arange(10)
+        message = "`variant` must be one of 'midrank', 'right', or 'continuous'."
+        with pytest.raises(ValueError, match=message):
+            stats.anderson_ksamp((x, x), variant='Camelot')
+
+    @pytest.mark.parametrize('n_samples', [2, 3])
+    def test_variant_continuous(self, n_samples):
+        rng = np.random.default_rng(20182053007)
+        samples = rng.random((n_samples, 15)) + 0.1*np.arange(n_samples)[:, np.newaxis]
+        ref = stats.anderson_ksamp(samples, variant='right')
+        res = stats.anderson_ksamp(samples, variant='continuous')
+        assert_allclose(res.statistic, ref.statistic)
+        assert_allclose(res.pvalue, ref.pvalue)
+
+
 @make_xp_test_case(stats.ansari)
 class TestAnsari:
 
@@ -631,7 +773,6 @@ class TestAnsari:
         xp_assert_close(W, xp.asarray(10.0))
         xp_assert_close(pval, xp.asarray(0.533333333333333333))
 
-    @pytest.mark.skip_xp_backends('jax.numpy', reason='no _axis_nan_policy decorator')
     @pytest.mark.parametrize('args', [([], [1.]), ([1.], [])])
     def test_bad_arg(self, args, xp):
         args = [xp.asarray(arg) for arg in args]
@@ -733,8 +874,6 @@ class TestAnsari:
     @pytest.mark.parametrize('n', [10, 100])  # affects code path
     @pytest.mark.parametrize('ties', [False, True])  # affects code path
     def test_dtypes(self, dtype, n, ties, xp):
-        if is_numpy(xp) and xp.__version__ < "2.0" and dtype == 'float32':
-            pytest.skip("Scalar dtypes only respected after NEP 50.")
         dtype = xp_default_dtype(xp) if dtype is None else getattr(xp, dtype)
         rng = np.random.default_rng(78587342806484)
         x, y = rng.integers(6, size=(2, n)) if ties else rng.random(size=(2, n))
@@ -1040,30 +1179,6 @@ class TestBinomTest:
         assert_equal(res.statistic, 0.25)
         assert_equal(res.pvalue, 1.0)
 
-    @pytest.mark.parametrize('k, n', [(0, 0), (-1, 2)])
-    def test_invalid_k_n(self, k, n):
-        with pytest.raises(ValueError,
-                           match="must be an integer not less than"):
-            stats.binomtest(k, n)
-
-    def test_invalid_k_too_big(self):
-        with pytest.raises(ValueError,
-                           match=r"k \(11\) must not be greater than n \(10\)."):
-            stats.binomtest(11, 10, 0.25)
-
-    def test_invalid_k_wrong_type(self):
-        with pytest.raises(TypeError,
-                           match="k must be an integer."):
-            stats.binomtest([10, 11], 21, 0.25)
-
-    def test_invalid_p_range(self):
-        message = r'p \(-0.5\) must be in range...'
-        with pytest.raises(ValueError, match=message):
-            stats.binomtest(50, 150, p=-0.5)
-        message = r'p \(1.5\) must be in range...'
-        with pytest.raises(ValueError, match=message):
-            stats.binomtest(50, 150, p=1.5)
-
     def test_invalid_confidence_level(self):
         res = stats.binomtest(3, n=10, p=0.1)
         message = r"confidence_level \(-1\) must be in the interval"
@@ -1089,6 +1204,53 @@ class TestBinomTest:
         with pytest.raises(OverflowError, match='Error in function...'):
             stats.binomtest(5, 6, p=sys.float_info.min)
 
+    @pytest.mark.parametrize("k, n, p",
+        [(-1, 10, 0.5), (11, 10, 0.5), (5.5, 10, 0.5), (np.nan, 10, 0.5),
+         (0, 0, 0.5), (5, 10.5, 0.5), (5, np.nan, 0.5),
+         (5, 10, -0.1), (5, 10, 1.1), (5, 10, np.nan)])
+    def test_invalid(self, k, n, p):
+        res = stats.binomtest(k, n, p)
+        np.testing.assert_equal(res.statistic, np.nan)
+        np.testing.assert_equal(res.pvalue, np.nan)
+
+    @pytest.mark.parametrize("alternative", ['less', 'greater', 'two-sided'])
+    @pytest.mark.parametrize("method", ['exact', 'wilson', 'wilsoncc'])
+    def test_scalar_in_scalar_out(self, alternative, method):
+        res = stats.binomtest(3, 11, 0.4, alternative=alternative)
+        assert np.isscalar(res.statistic)
+        assert np.isscalar(res.pvalue)
+        assert np.isscalar(res.n)
+        assert np.isscalar(res.k)
+        ci = res.proportion_ci(method=method)
+        assert np.isscalar(ci.low)
+        assert np.isscalar(ci.high)
+
+    @pytest.mark.parametrize("alternative", ["less", "greater", "two-sided"])
+    @pytest.mark.parametrize("method", ["exact", "wilson", "wilsoncc"])
+    def test_ndarray(self, alternative, method):
+        shape = (7, 8, 9)
+        rng = np.random.default_rng(2150248640)
+        k = rng.integers(-1, 11, size=shape)
+        n = rng.integers(-1, 11, size=shape)
+        p = rng.uniform(-0.1, 1.1, size=shape)
+        res = stats.binomtest(k, n, p, alternative=alternative)
+        ci = res.proportion_ci(method=method)
+
+        @np.vectorize(excluded='alternative')
+        def binomtest_1d(k, n, p, alternative):
+            ref = stats.binomtest(k, n, p, alternative=alternative)
+            ci = ref.proportion_ci(method=method)
+            return ref.k, ref.n, ref.statistic, ref.pvalue, ci.low, ci.high
+
+        ref_k, ref_n, ref_statistic, ref_pvalue, ci_low, ci_high = binomtest_1d(
+            k, n, p, alternative)
+        assert_allclose(res.k, ref_k)
+        assert_allclose(res.n, ref_n)
+        assert_allclose(res.statistic, ref_statistic)
+        assert_allclose(res.pvalue, ref_pvalue)
+        assert_allclose(ci.low, ci_low)
+        assert_allclose(ci.high, ci_high)
+
 
 @make_xp_test_case(stats.fligner)
 class TestFligner:
@@ -1100,8 +1262,6 @@ class TestFligner:
 
     @pytest.mark.parametrize('dtype', [None, 'float32', 'float64'])
     def test_data(self, dtype, xp):
-        if is_numpy(xp) and dtype == 'float32' and xp.__version__ < "2":
-            pytest.skip("Scalar dtypes only respected after NEP 50.")
         # numbers from R: fligner.test in package stats
         dtype = xp_default_dtype(xp) if dtype is None else getattr(xp, dtype)
         x1 = xp.arange(5, dtype=dtype)
@@ -1162,7 +1322,6 @@ class TestFligner:
         with pytest.raises(ValueError, match=message):
             stats.fligner(xp.asarray([1, 2]))
 
-    @pytest.mark.skip_xp_backends('jax.numpy', reason='lazy -> no _axis_nan_policy')
     def test_empty_arg(self, xp):
         x = xp.arange(5.)
         with pytest.warns(SmallSampleWarning, match=too_small_1d_not_omit):
@@ -1242,8 +1401,6 @@ class TestMood:
                                            .1538788064889380))])
     def test_against_SAS_2(self, dtype, alternative, expected, xp):
         # Code to run in SAS in above function
-        if is_numpy(xp) and xp.__version__ < "2.0" and dtype == 'float32':
-            pytest.skip("Pre-NEP 50 doesn't respect dtypes")
         dtype = xp_default_dtype(xp) if dtype is None else getattr(xp, dtype)
         x = [111, 107, 100, 99, 102, 106, 109, 108, 104, 99,
              101, 96, 97, 102, 107, 113, 116, 113, 110, 98]
@@ -1367,8 +1524,6 @@ class TestMood:
 
     @pytest.mark.parametrize("dtype", [None, 'float32', 'float64'])
     def test_mood_alternative(self, dtype, xp):
-        if is_numpy(xp) and xp.__version__ < "2.0" and dtype == 'float32':
-            pytest.skip("Pre-NEP 50 doesn't respect dtypes")
         dtype = xp_default_dtype(xp) if dtype is None else getattr(xp, dtype)
 
         rng = np.random.RandomState(0)
@@ -1637,8 +1792,6 @@ class TestWilcoxon:
         # do.call(wilcox.test, c(cfg, list(alternative = "less", correct = TRUE)))
         # do.call(wilcox.test, c(cfg, list(alternative = "greater", correct = FALSE)))
         # do.call(wilcox.test, c(cfg, list(alternative = "greater", correct = TRUE)))
-        if is_numpy(xp) and xp.__version__ < "2.0" and dtype == 'float32':
-            pytest.skip("dtypes not preserved with pre-NEP 50 rules")
 
         dtype = dtype if dtype is None else getattr(xp, dtype)
         x = xp.asarray([125, 115, 130, 140, 140, 115, 140, 125, 140, 135], dtype=dtype)
@@ -2182,7 +2335,46 @@ _boxcox_data = [
 ]
 
 
-class TestBoxcox:
+class TransformTest:
+    def test_nan_policy(self):
+        transform = getattr(stats, self.transform)
+        normmax = getattr(stats, f"{self.transform}_normmax")
+        special_transform = getattr(special, self.transform, _yeojohnson_transform)
+
+        rng = np.random.default_rng(5908294582456923546)
+        x = rng.random(10)
+        x[3] = np.nan
+
+        # lmb provided
+        lmb = 1.0
+
+        with pytest.raises(ValueError, match="The input contains nan values"):
+            transform(x, lmb, nan_policy='raise')
+
+        res = transform(x, lmb, nan_policy='propagate')
+        np.testing.assert_allclose(res, special_transform(x, 1.))
+
+        res = transform(x, lmb, nan_policy='omit')
+        np.testing.assert_allclose(res, transform(x, lmb, nan_policy='propagate'))
+
+        # lmb not provided
+        with pytest.raises(ValueError, match="The input contains nan values"):
+            transform(x, nan_policy='raise')
+
+        res = transform(x, nan_policy='propagate')
+        np.testing.assert_equal(res[0], special_transform(x, np.nan))
+        np.testing.assert_equal(res[1], np.nan)
+
+        kwarg = {'method': 'mle'} if transform == stats.boxcox else {}
+        res = transform(x, nan_policy='omit')
+        lmb = normmax(x, nan_policy='omit', **kwarg)
+        ref = transform(x, lmb)
+        np.testing.assert_allclose(res[0], ref)
+        np.testing.assert_allclose(res[1], lmb)
+
+
+class TestBoxcox(TransformTest):
+    transform = 'boxcox'
 
     def test_fixed_lmbda(self):
         x = _old_loggamma_rvs(5, size=50, random_state=12345) + 5
@@ -2299,7 +2491,7 @@ class TestBoxcox:
             stats.boxcox(_boxcox_data, lmbda=None, optimizer=optimizer)
 
     @pytest.mark.parametrize(
-            "bad_x", [np.array([1, -42, 12345.6]), np.array([np.nan, 42, 1])]
+            "bad_x", [np.array([1, -42, 12345.6]), np.array([np.inf, 42, 1])]
         )
     def test_negative_x_value_raises_error(self, bad_x):
         """Test boxcox_normmax raises ValueError if x contains non-positive values."""
@@ -2321,8 +2513,45 @@ class TestBoxcox:
             xt_bc, lam_bc = stats.boxcox(x)
             assert np.all(np.isfinite(xt_bc))
 
+    def test_confidence_interval_nan_policy(self):
+        # other outputs with `nan_policy` tested in superclass
+        rng = np.random.default_rng(5908294582456923546)
+        x = rng.random(10)
+        x[3] = np.nan
+        alpha = 0.5
 
-class TestBoxcoxNormmax:
+        with pytest.raises(ValueError, match="The input contains nan values"):
+            stats.boxcox(x, alpha=alpha, nan_policy='raise')
+
+        res = stats.boxcox(x, alpha=alpha, nan_policy='propagate')[2]
+        np.testing.assert_equal(res, (np.nan, np.nan))
+
+        res = stats.boxcox(x, alpha=alpha, nan_policy='omit')[2]
+        ref = stats.boxcox(x[~np.isnan(x)], alpha=alpha)[2]
+        np.testing.assert_allclose(res, ref)
+
+
+class NormmaxTest:
+    def test_nan_policy(self):
+        transform_normmax = getattr(stats, self.transform_normmax)
+        rng = np.random.default_rng(5908294582456923546)
+        x = rng.random(10)
+        x[3] = np.nan
+
+        with pytest.raises(ValueError, match="The input contains nan values"):
+            transform_normmax(x, nan_policy='raise')
+
+        res = transform_normmax(x, nan_policy='propagate')
+        np.testing.assert_equal(res, np.nan)
+
+        res = transform_normmax(x, nan_policy='omit')
+        ref = transform_normmax(x[~np.isnan(x)])
+        np.testing.assert_allclose(res, ref)
+
+
+class TestBoxcoxNormmax(NormmaxTest):
+    transform_normmax = 'boxcox_normmax'
+
     def setup_method(self):
         self.x = _old_loggamma_rvs(5, size=50, random_state=12345) + 5
 
@@ -2463,6 +2692,22 @@ class TestBoxcoxNormmax:
         lmb_64 = stats.boxcox_normmax(x_64, ymax=np.inf, method=method)
         assert_allclose(lmb_32, lmb_64, rtol=1e-2)
 
+    def test_nan_policy_all(self):
+        # `nan_policy` with other `method`s tested in superclass
+        rng = np.random.default_rng(5908294582456923546)
+        x = rng.random(10)
+        x[3] = np.nan
+
+        with pytest.raises(ValueError, match="The input contains nan values"):
+            stats.boxcox_normmax(x, method='all', nan_policy='raise')
+
+        res = stats.boxcox_normmax(x, method='all', nan_policy='propagate')
+        np.testing.assert_equal(res, (np.nan, np.nan))
+
+        res = stats.boxcox_normmax(x, method='all', nan_policy='omit')
+        ref = stats.boxcox_normmax(x[~np.isnan(x)], method='all')
+        np.testing.assert_allclose(res, ref)
+
 
 class TestBoxcoxNormplot:
     def setup_method(self):
@@ -2523,8 +2768,24 @@ class TestYeojohnson_llf:
         with eager_warns(SmallSampleWarning, match=message, xp=xp):
             assert xp.isnan(stats.yeojohnson_llf(1, xp.asarray([])))
 
+    def test_gh24172(self, xp):
+        # Test all negative and all positive data
+        data = xp.asarray([10, 10, 10, 9.9], dtype=xp.float64)
+        # The expected value was computed with mpsci, set mpmath.mp.dps=100
+        # 1. Test precision loss
+        xp_assert_close(stats.yeojohnson_llf(-14, data),
+                        xp.asarray(12.418595783381280, dtype=xp.float64), rtol=1e-7)
+        xp_assert_close(stats.yeojohnson_llf(16, -data),
+                        xp.asarray(12.418595783381280, dtype=xp.float64), rtol=1e-7)
+        # 2. Test overflow
+        xp_assert_close(stats.yeojohnson_llf(-20, data),
+                        xp.asarray(12.360966379200528, dtype=xp.float64), rtol=1e-7)
+        xp_assert_close(stats.yeojohnson_llf(20, -data),
+                        xp.asarray(12.380287243698629, dtype=xp.float64), rtol=1e-7)
 
-class TestYeojohnson:
+
+class TestYeojohnson(TransformTest):
+    transform = 'yeojohnson'
 
     def test_fixed_lmbda(self):
         rng = np.random.RandomState(12345)
@@ -2651,10 +2912,9 @@ class TestYeojohnson:
         assert_allclose(lam_yeo, lam_box, rtol=1e-6)
 
     @pytest.mark.parametrize('x', [
-        np.array([1.0, float("nan"), 2.0]),
         np.array([1.0, float("inf"), 2.0]),
         np.array([1.0, -float("inf"), 2.0]),
-        np.array([-1.0, float("nan"), float("inf"), -float("inf"), 1.0])
+        np.array([-1.0, float("inf"), -float("inf"), 1.0])
     ])
     def test_nonfinite_input(self, x):
         with pytest.raises(ValueError, match='Yeo-Johnson input must be finite'):
@@ -2724,7 +2984,9 @@ class TestYeojohnson:
             assert np.all(xt_yeo_int == xt_yeo_float)
 
 
-class TestYeojohnsonNormmax:
+class TestYeojohnsonNormmax(NormmaxTest):
+    transform_normmax = 'yeojohnson_normmax'
+
     def setup_method(self):
         self.x = _old_loggamma_rvs(5, size=50, random_state=12345) + 5
 
@@ -3302,6 +3564,7 @@ class TestFDRControl:
             xp_assert_equal(stats.false_discovery_control(0.25), 0.25)
 
 
+@pytest.mark.uses_xp_capabilities(False, reason="not used in this test yet")
 class TestCommonAxis:
     # More thorough testing of `axis` in `test_axis_nan_policy`,
     # but those tests aren't run with array API yet. This class

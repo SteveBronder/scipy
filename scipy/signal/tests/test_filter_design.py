@@ -5,7 +5,7 @@ import os
 
 from itertools import product
 
-from scipy._lib import _pep440
+from scipy._external.packaging_version import version
 import numpy as np
 import pytest
 from pytest import raises as assert_raises
@@ -21,7 +21,7 @@ from numpy import array, spacing, sin, pi
 from scipy.signal import (argrelextrema, BadCoefficients, bessel, besselap, bilinear,
                           buttap, butter, buttord, cheb1ap, cheb1ord, cheb2ap,
                           cheb2ord, cheby1, cheby2, ellip, ellipap, ellipord,
-                          firwin, freqs_zpk, freqs, freqz, freqz_zpk,
+                          findfreqs, firwin, freqs_zpk, freqs, freqz, freqz_zpk,
                           gammatone, group_delay, iircomb, iirdesign, iirfilter,
                           iirnotch, iirpeak, lp2bp, lp2bs, lp2hp, lp2lp, normalize,
                           sos2tf, sos2zpk, sosfreqz, freqz_sos, tf2sos, tf2zpk, zpk2sos,
@@ -48,7 +48,7 @@ except ImportError:
 def mpmath_check(min_ver):
     return pytest.mark.skipif(
         mpmath is None
-        or _pep440.parse(mpmath.__version__) < _pep440.Version(min_ver),
+        or version.parse(mpmath.__version__) < version.Version(min_ver),
         reason=f"mpmath version >= {min_ver} required",
     )
 
@@ -1128,6 +1128,7 @@ class TestFreqz_sos:
         with assert_raises(ValueError):
             freqz_sos(sos[:0, ...])
 
+    @make_xp_test_case(sosfreqz)
     def test_backward_compat(self, xp):
         # For backward compatibility, test if None act as a wrapper for default
         N = 500
@@ -5111,3 +5112,25 @@ class TestGammatone:
     def test_fs_validation(self):
         with pytest.raises(ValueError, match="Sampling.*single scalar"):
             gammatone(440, 'iir', fs=np.asarray([10, 20]))
+
+
+@make_xp_test_case(findfreqs)
+class TestFindFreqs:
+    @pytest.mark.parametrize("kind", ["ba", "zp"])
+    def test_findfreqs_log_spacing(self, xp, kind):
+        N = 30
+        w = findfreqs(xp.asarray([1.2], dtype=xp.float64),
+                      xp.asarray([3.6, 9.8], dtype=xp.float64), N=N, kind=kind)
+        ratio = xp.diff(xp.log10(w))
+        xp_assert_close(ratio, ratio[0]*xp.ones(N - 1, dtype=xp.float64))
+
+    def test_findfreqs_ba_zp_equiv(self, xp):
+        num, den = [1.4, 2], [1, 3.8, 2]
+        zeros = xp.asarray(np.roots(num))
+        poles = xp.asarray(np.roots(den))
+
+        ba = findfreqs(xp.asarray(num, dtype=xp.float64),
+                       xp.asarray(den, dtype=xp.float64), N=30, kind="ba")
+        zp = findfreqs(zeros, poles, N=30, kind="zp")
+
+        xp_assert_close(ba, zp)
