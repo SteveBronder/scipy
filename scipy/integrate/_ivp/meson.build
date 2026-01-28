@@ -1,15 +1,28 @@
 # Riccati pybind11 extension
 riccati_inc = include_directories('../include')
 
-eigen3_dep = dependency('eigen3', required: false, fallback: ['eigen', 'eigen3'])
-if eigen3_dep.found()
-  eigen_deps = [np_dep, pybind11_dep, eigen3_dep]
-  eigen_incdirs = [riccati_inc]
-else
-  eigen_local = include_directories('../../../subprojects/eigen-3.4.0', is_system: true)
-  eigen_deps = [np_dep, pybind11_dep]
-  eigen_incdirs = [riccati_inc, eigen_local]
-endif
+cmake = import('cmake')
+opt_var = cmake.subproject_options()
+
+opt_var.add_cmake_defines(
+  {'EIGEN_BUILD_DOC': false,
+   'EIGEN_BUILD_BTL': false,
+   'EIGEN_BUILD_BLAS': false,
+   'EIGEN_BUILD_LAPACK': false,
+   'EIGEN_BUILD_TESTING': false,
+   'EIGEN_BUILD_PKGCONFIG': false,
+   'EIGEN_LEAVE_TEST_IN_ALL_TARGET': false})
+
+# Configure Eigen as a CMake subproject (this triggers wrap download if needed)
+eigen_sp = cmake.subproject('eigen', options: opt_var)
+
+message('CMake targets:\n - ' + '\n - '.join(eigen_sp.target_list()))
+# Eigen’s exported target is usually Eigen3::Eigen
+eigen3_dep = eigen_sp.dependency('eigen', include_type: 'system')
+
+
+eigen_deps = [np_dep, pybind11_dep, eigen3_dep]
+eigen_incdirs = [riccati_inc]
 
 py3.extension_module(
   '_riccati',
