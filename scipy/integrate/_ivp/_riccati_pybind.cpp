@@ -49,7 +49,7 @@ struct CallbackWrapper {
         if constexpr (std::is_same_v<ReturnType, complex_t>) {
             return res.cast<complex_t>();
         } else {
-            return res.cast<double>();
+            return res.cast<ReturnType>();
         }
     }
 
@@ -87,18 +87,19 @@ struct CallbackWrapper {
     }
 };
 
-using SolverRR = riccati::SolverInfo<CallbackWrapper<double>, CallbackWrapper<double>, double, int64_t,
+using SolverDD = riccati::SolverInfo<CallbackWrapper<double>, CallbackWrapper<double>, double, int64_t,
     riccati::arena_allocator<double, riccati::arena_alloc>, riccati::EmptyLogger, double, double>;
-using SolverCR = riccati::SolverInfo<CallbackWrapper<complex_t>, CallbackWrapper<double>, double, int64_t,
+using SolverCD = riccati::SolverInfo<CallbackWrapper<complex_t>, CallbackWrapper<double>, double, int64_t,
     riccati::arena_allocator<double, riccati::arena_alloc>, riccati::EmptyLogger, complex_t, double>;
-using SolverRC = riccati::SolverInfo<CallbackWrapper<double>, CallbackWrapper<complex_t>, double, int64_t,
+using SolverDC = riccati::SolverInfo<CallbackWrapper<double>, CallbackWrapper<complex_t>, double, int64_t,
     riccati::arena_allocator<double, riccati::arena_alloc>, riccati::EmptyLogger, double, complex_t>;
+
 using SolverCC = riccati::SolverInfo<CallbackWrapper<complex_t>, CallbackWrapper<complex_t>, double, int64_t,
     riccati::arena_allocator<double, riccati::arena_alloc>, riccati::EmptyLogger, complex_t, complex_t>;
 
-using SolverVariant = std::variant<std::monostate, SolverRR, SolverCR, SolverRC, SolverCC>;
+using SolverVariant = std::variant<SolverDD, SolverCD, SolverDC, SolverCC>;
 
-enum class CallbackType { Real = 0, Complex = 1 };
+enum class CallbackType { Double = 0, Complex = 1 };
 
 static CallbackType detect_type(py::function func) {
     py::gil_scoped_acquire gil;
@@ -109,46 +110,50 @@ static CallbackType detect_type(py::function func) {
     }
     try {
         auto dt = py::dtype::from_args(res);
-        if (dt.kind() == 'c') {
+        const char kind = dt.kind();
+        if (kind == 'c') {
             return CallbackType::Complex;
-        }
-        if (dt.kind() == 'f') {
-            return CallbackType::Real;
         }
     } catch (const std::exception&) {
         // Fall through to default real if dtype introspection fails.
     }
-    return CallbackType::Real;
+    return CallbackType::Double;
 }
 
 static SolverVariant make_solver_variant(py::function omega_fun, py::function gamma_fun,
                                          int nini, int nmax, int n, int p) {
-    SolverVariant solver{std::monostate{}};
     auto otype = detect_type(omega_fun);
     auto gtype = detect_type(gamma_fun);
-    switch ((static_cast<int>(otype) << 1) | static_cast<int>(gtype)) {
-        case 0:
-            solver.emplace<SolverRR>(CallbackWrapper<double>(omega_fun),
+    switch (otype) {
+      case CallbackType::Double:
+        switch (gtype) {
+          case CallbackType::Double:
+              return SolverVariant(std::in_place_type<SolverDD>,
+                                   CallbackWrapper<double>(omega_fun),
+                                   CallbackWrapper<double>(gamma_fun),
+                                   nini, nmax, n, p);
+          case CallbackType::Complex:
+              return SolverVariant(std::in_place_type<SolverDC>,
+                                   CallbackWrapper<double>(omega_fun),
+                                   CallbackWrapper<complex_t>(gamma_fun),
+                                   nini, nmax, n, p);
+        }
+      case CallbackType::Complex:
+          switch (gtype) {
+            case CallbackType::Double:
+                return SolverVariant(std::in_place_type<SolverCD>,
+                                     CallbackWrapper<complex_t>(omega_fun),
                                      CallbackWrapper<double>(gamma_fun),
                                      nini, nmax, n, p);
-            break;
-        case 1:
-            solver.emplace<SolverRC>(CallbackWrapper<double>(omega_fun),
+            case CallbackType::Complex:
+                return SolverVariant(std::in_place_type<SolverCC>,
+                                     CallbackWrapper<complex_t>(omega_fun),
                                      CallbackWrapper<complex_t>(gamma_fun),
                                      nini, nmax, n, p);
-            break;
-        case 2:
-            solver.emplace<SolverCR>(CallbackWrapper<complex_t>(omega_fun),
-                                     CallbackWrapper<double>(gamma_fun),
-                                     nini, nmax, n, p);
-            break;
-        default:
-            solver.emplace<SolverCC>(CallbackWrapper<complex_t>(omega_fun),
-                                     CallbackWrapper<complex_t>(gamma_fun),
-                                     nini, nmax, n, p);
-            break;
+          }
     }
-    return solver;
+    // TODO: Nicer error message
+    throw std::domain_error("Unsupported callback types");
 }
 
 class RiccatiSolver {
@@ -165,48 +170,44 @@ public:
 
         auto run = [&](auto& solver) -> py::tuple {
             using solver_t = std::decay_t<decltype(solver)>;
-            if constexpr (std::is_same_v<solver_t, std::monostate>) {
-                throw std::runtime_error("RiccatiSolver is not initialized");
-            } else {
-                using complex_scalar = typename solver_t::complex_t;
+            using complex_scalar = typename solver_t::complex_t;
 
-                Eigen::VectorXd t_eval_vec;
-                bool use_teval = false;
-                if (!t_eval.is_none()) {
-                    py::gil_scoped_acquire gil;
-                    auto arr = py::cast<py::array_t<double>>(t_eval);
-                    py::buffer_info info = arr.request();
-                    t_eval_vec = Eigen::Map<Eigen::VectorXd>(static_cast<double*>(info.ptr),
-                                                             static_cast<Eigen::Index>(info.shape[0]));
-                    use_teval = true;
-                }
-
-                complex_scalar y_init = static_cast<complex_scalar>(yi);
-                complex_scalar dy_init = static_cast<complex_scalar>(dyi);
-
-                auto result = use_teval
-                    ? riccati::evolve(solver, xi, xf, y_init, dy_init, eps, epsilon_h, init_stepsize, t_eval_vec, hard_stop)
-                    : riccati::evolve(solver, xi, xf, y_init, dy_init, eps, epsilon_h, init_stepsize,
-                                      Eigen::Matrix<double, 0, 0>{}, hard_stop);
-
-                auto& [xs, ys, dys, successes, phases, steptypes, yeval, dyeval, dense_start] = result;
-
-                // Build numpy arrays (copying vectors)
+            Eigen::VectorXd t_eval_vec;
+            bool use_teval = false;
+            if (!t_eval.is_none()) {
                 py::gil_scoped_acquire gil;
-                auto t_arr = vector_to_array_copy(xs);
-                auto y_arr = vector_to_array_copy(ys);
-                auto ydot_arr = vector_to_array_copy(dys);
-                auto success_arr = vector_to_array_copy(successes);
-                auto phase_arr = vector_to_array_copy(phases);
-                auto steptype_arr = vector_to_array_copy(steptypes);
-
-                auto yeval_arr = vector_to_array_copy(yeval);
-                auto dyeval_arr = vector_to_array_copy(dyeval);
-
-                return py::make_tuple(t_arr, y_arr, ydot_arr, success_arr,
-                                      phase_arr, steptype_arr, yeval_arr,
-                                      dyeval_arr);
+                auto arr = py::cast<py::array_t<double>>(t_eval);
+                py::buffer_info info = arr.request();
+                t_eval_vec = Eigen::Map<Eigen::VectorXd>(static_cast<double*>(info.ptr),
+                                                         static_cast<Eigen::Index>(info.shape[0]));
+                use_teval = true;
             }
+
+            complex_scalar y_init = static_cast<complex_scalar>(yi);
+            complex_scalar dy_init = static_cast<complex_scalar>(dyi);
+
+            auto result = use_teval
+                ? riccati::evolve(solver, xi, xf, y_init, dy_init, eps, epsilon_h, init_stepsize, t_eval_vec, hard_stop)
+                : riccati::evolve(solver, xi, xf, y_init, dy_init, eps, epsilon_h, init_stepsize,
+                                  Eigen::Matrix<double, 0, 0>{}, hard_stop);
+
+            auto& [xs, ys, dys, successes, phases, steptypes, yeval, dyeval, dense_start] = result;
+
+            // Build numpy arrays (copying vectors)
+            py::gil_scoped_acquire gil;
+            auto t_arr = vector_to_array_copy(xs);
+            auto y_arr = vector_to_array_copy(ys);
+            auto ydot_arr = vector_to_array_copy(dys);
+            auto success_arr = vector_to_array_copy(successes);
+            auto phase_arr = vector_to_array_copy(phases);
+            auto steptype_arr = vector_to_array_copy(steptypes);
+
+            auto yeval_arr = vector_to_array_copy(yeval);
+            auto dyeval_arr = vector_to_array_copy(dyeval);
+
+            return py::make_tuple(t_arr, y_arr, ydot_arr, success_arr,
+                                  phase_arr, steptype_arr, yeval_arr,
+                                  dyeval_arr);
         };
 
         return std::visit(run, solver_);
@@ -252,13 +253,8 @@ PYBIND11_MODULE(_riccati, m) {
               auto solver = make_solver_variant(std::move(omega_fun), std::move(gamma_fun),
                                                 nini, nmax, n, p);
               auto run = [&](auto& s) -> double {
-                  using solver_t = std::decay_t<decltype(s)>;
-                  if constexpr (std::is_same_v<solver_t, std::monostate>) {
-                      throw std::runtime_error("Solver not initialized");
-                  } else {
-                      auto tup = riccati::choose_osc_stepsize(s, x0, h, epsilon_h);
-                      return std::get<0>(tup);
-                  }
+                  auto tup = riccati::choose_osc_stepsize(s, x0, h, epsilon_h);
+                  return std::get<0>(tup);
               };
               return std::visit(run, solver);
           },
@@ -273,12 +269,7 @@ PYBIND11_MODULE(_riccati, m) {
               auto solver = make_solver_variant(std::move(omega_fun), std::move(gamma_fun),
                                                 nini, nmax, n, p);
               auto run = [&](auto& s) -> double {
-                  using solver_t = std::decay_t<decltype(s)>;
-                  if constexpr (std::is_same_v<solver_t, std::monostate>) {
-                      throw std::runtime_error("Solver not initialized");
-                  } else {
-                      return riccati::choose_nonosc_stepsize(s, x0, h, epsilon_h);
-                  }
+                  return riccati::choose_nonosc_stepsize(s, x0, h, epsilon_h);
               };
               return std::visit(run, solver);
           },

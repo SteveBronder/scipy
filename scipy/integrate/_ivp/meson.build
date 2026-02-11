@@ -1,6 +1,3 @@
-# Riccati pybind11 extension
-riccati_inc = include_directories('../include')
-
 cmake = import('cmake')
 opt_var = cmake.subproject_options()
 
@@ -20,15 +17,15 @@ message('CMake targets:\n - ' + '\n - '.join(eigen_sp.target_list()))
 # Eigen’s exported target is usually Eigen3::Eigen
 eigen3_dep = eigen_sp.dependency('eigen', include_type: 'system')
 
+riccaticpp = subproject('riccaticpp')
+riccaticpp_dep = riccaticpp.get_variable('riccaticpp_dep')
 
-eigen_deps = [np_dep, pybind11_dep, eigen3_dep]
-eigen_incdirs = [riccati_inc]
+eigen_deps = [np_dep, pybind11_dep, eigen3_dep, riccaticpp_dep]
 
 py3.extension_module(
   '_riccati',
   ['_riccati_pybind.cpp'],
   dependencies: eigen_deps,
-  include_directories: eigen_incdirs,
   link_args: version_link_args,
   install: true,
   subdir: 'scipy/integrate/_ivp',
