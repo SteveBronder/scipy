@@ -88,6 +88,9 @@ pip-wheel-metadata
 installdir/
 .mesonpy/
 .wraplock
+subprojects/*
+!subprojects/*.wrap
+!subprojects/packagefiles/**
 
 # doit
 ######

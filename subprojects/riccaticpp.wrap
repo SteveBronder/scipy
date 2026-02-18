@@ -1,0 +1,6 @@
+[wrap-file]
+directory = riccaticpp-1.0.0
+source_url = https://github.com/SteveBronder/riccaticpp/archive/refs/tags/1.0.0.tar.gz
+source_filename = riccaticpp-1.0.0.tar.gz
+source_hash = 4665611e1e29f5f3f1058e5b9783f005f474dc9f66e6783cc8071e23fc733c92
+patch_directory = riccaticpp
